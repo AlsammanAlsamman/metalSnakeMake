@@ -74,3 +74,19 @@
 
 # Step 7 (dry run to check configuration):
 # ./scripts/submit_enrich_eaf.sh --dry-run
+
+
+# Step 8: Enrich Meta-Analysis with MPRA Functional Data - Match SNPs with MPRA by chr+pos
+# Process all combinations in parallel (1 job per combination)
+./submit.sh --snakefile rules/08_mpra_enrich.smk --cores 1 --jobs 10
+
+# Step 8 (dry run to check configuration):
+# ./submit.sh --snakefile rules/08_mpra_enrich.smk --cores 1 --jobs 10 --dry-run
+
+
+# Step 9: Annotate Meta-Analysis with ANNOVAR - Add functional gene-based annotations
+# Process all combinations in parallel (1 job per combination)
+./submit.sh --snakefile rules/09_annovar_annotate.smk --cores 1 --jobs 10
+
+# Step 9 (dry run to check configuration):
+# ./submit.sh --snakefile rules/09_annovar_annotate.smk --cores 1 --jobs 10 --dry-run

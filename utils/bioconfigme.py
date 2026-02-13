@@ -133,7 +133,7 @@ def get_analysis_value(
     return current
 
 
-def get_software_module(tool_name: str) -> str:
+def get_software_module(tool_name: str, required: bool = True, default: Optional[str] = None) -> str:
     """
     Get the module load command or path for a software tool.
     
@@ -142,24 +142,30 @@ def get_software_module(tool_name: str) -> str:
     
     Args:
         tool_name: Name of the tool (e.g., 'metal', 'python', 'liftover')
+        required: If True, raise error when tool is not found
+        default: Default value if tool is not found and required=False
     
     Returns:
         Module name or absolute path to the tool
     
     Raises:
-        ValueError: If tool is not found or has neither module nor path
+        ValueError: If required=True and tool is not found or has neither module nor path
     
     Examples:
         >>> get_software_module('metal')
         'metal/2020-05-05'  # or '/usr/local/bin/metal'
+        >>> get_software_module('perl', required=False, default='perl/5.36')
+        'perl/5.36'
     """
     config = _load_config('software')
     
     if tool_name not in config:
-        raise ValueError(
-            f"Tool '{tool_name}' not found in configs/software.yml\n"
-            f"Available tools: {', '.join(config.keys())}"
-        )
+        if required:
+            raise ValueError(
+                f"Tool '{tool_name}' not found in configs/software.yml\n"
+                f"Available tools: {', '.join(config.keys())}"
+            )
+        return default
     
     tool_config = config[tool_name]
     
@@ -169,9 +175,11 @@ def get_software_module(tool_name: str) -> str:
     elif 'path' in tool_config and tool_config['path']:
         return tool_config['path']
     else:
-        raise ValueError(
-            f"Tool '{tool_name}' must have either 'module' or 'path' defined in configs/software.yml"
-        )
+        if required:
+            raise ValueError(
+                f"Tool '{tool_name}' must have either 'module' or 'path' defined in configs/software.yml"
+            )
+        return default
 
 
 def get_dataset_list() -> List[str]:

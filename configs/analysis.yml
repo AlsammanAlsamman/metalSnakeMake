@@ -209,6 +209,19 @@ qc:
   het_pval_threshold: 0.001  # Heterogeneity p-value threshold
   max_het_i2: 75     # Maximum I² statistic (0-100)
 
+# Enrichment settings
+enrichment:
+  mpra:
+    file: "resources/MPRA/MPRA_hg38.txt"  # MPRA database file path
+    fdr_threshold: 0.05                    # FDR threshold for filtering MPRA records
+    excel_pvalue_threshold: 0.005          # P-value threshold for Excel output (5e-3)
+  
+  annovar:
+    humandb: "resources/annovar/humandb"   # ANNOVAR database directory
+    protocols: ["refGene"]                 # Annotation protocols to use
+    operations: ["g"]                      # g=gene-based annotation
+    excel_pvalue_threshold: 0.005          # P-value threshold for Excel output (5e-3)
+
 # Resources paths
 resources:
   liftover_chains:

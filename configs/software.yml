@@ -52,3 +52,11 @@ plink2:
 tabix:
   module: "tabix/1.15"
   # path: "/usr/bin/tabix"  # Alternative: direct path
+
+annovar:
+  module: "annovar"
+  # path: "/path/to/annovar"  # Alternative: direct path to ANNOVAR directory
+
+perl:
+  module: "perl/5.36"
+  # path: "/usr/bin/perl"  # Alternative: direct path
