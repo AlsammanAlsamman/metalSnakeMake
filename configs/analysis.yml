@@ -1,0 +1,237 @@
+# Meta-analysis configuration
+
+project_name: "metal-meta-analysis"
+version: "0.1.0"
+results_dir: "/s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results"
+
+# Target genome build - all datasets will be converted to this build
+target_build: "hg38"  # Options: hg19, hg38
+target_snp_list: "input/target_snp_list.txt"  # Reference SNP list for filtering and annotation
+markername_format: "chrom:pos:snpid"  # Format for METAL MarkerName column (options: chrom:pos:snpid, chrom:pos, snpid)
+
+# Standardized column names (Step 0 output format)
+# All datasets will be standardized to these column names:
+#   snpid  - SNP identifier (rsID or variant ID)
+#   chrom  - Chromosome number
+#   pos    - Base pair position
+#   ea     - Effect allele
+#   nea    - Non-effect allele (other/reference allele)
+#   eaf    - Effect allele frequency
+#   neaf   - Non-effect allele frequency
+#   beta   - Beta coefficient (log odds ratio)
+#   se     - Standard error of beta
+#   p      - P-value
+#   n      - Sample size (per variant or total)
+#
+# Note: .ssf.tsv files have variant_id in "chrom:pos" format
+#       These will be split into chrom and pos columns during standardization
+
+# Dataset specifications
+# Each dataset must specify its current build and column mappings
+# Columns map: original_name -> standardized_name (snpid, chrom, pos, ea, nea, eaf, neaf, beta, se, p, n)
+#
+# File format notes:
+#   - .ssf.tsv files: Standardized Summary Format with variant_id in "chrom:pos" format
+#     These files have BETA already calculated from OR (log(OR))
+#   - CHI.tsv: Original format with separate chrom/pos columns
+#   - EUR: Meta-analysis result with heterogeneity statistics
+#   - MVP: Large dataset with OR format (standard_error may need verification for scale)
+datasets:
+  CHI:
+    file: "input/CHI.tsv"
+    build: "hg19"  # Current build of this dataset
+    n_cases: 4222  # Total sample size available in file
+    n_controls: 8431  # Adjust based on case/control split
+    study_type: "GWAS"  # GWAS or META
+    columns:
+      snpid: "rsid"               # SNP identifier
+      chrom: "chrom"              # Chromosome
+      pos: "pos"                  # Position
+      ea: "effectallele"          # Effect allele
+      nea: "otherallele"          # Non-effect/other allele
+      eaf: "effect_allele_freq"   # Effect allele frequency
+      neaf: "other_allele_freq"   # Non-effect allele frequency
+      beta: "beta"                # Beta coefficient (available)
+      or: "OR"                    # Odds ratio (also available)
+      se: "se"                    # Standard error
+      p: "pvalue"                 # P-value
+      n: "n"                      # Sample size per variant
+
+
+  CLM:
+    file: "input/CLM.ssf.tsv"
+    build: "hg19"
+    n_cases: 316
+    n_controls: 1363
+    study_type: "GWAS"
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      beta: "beta"                        # Beta coefficient (already calculated)
+      se: "standard_error"                # Standard error
+      p: "p_value"                        # P-value
+      n: "n"                              # Sample size per variant
+
+  EUR:
+    file: "input/EURstdrCleanBJ_with_freq.tsv"
+    build: "hg19"
+    n_cases: 4036
+    n_controls: 6959
+    study_type: "GWAS"  # Or META if this is meta-analysis result
+    columns:
+      snpid: "MarkerName:3"                 # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      chrom: "chr"                        # Chromosome
+      pos: "pos"                          # Position
+      ea: "Allele1"                       # Effect allele
+      nea: "Allele2"                      # Non-effect/other allele
+      eaf: "Allele1_Freq"                 # Effect allele frequency
+      beta: "Effect"                      # Beta coefficient
+      se: "StdErr"                        # Standard error
+      p: "P-value"                        # P-value
+      het_i2: "HetISq"                    # Heterogeneity I² statistic
+      het_pval: "HetPVal"                 # Heterogeneity p-value
+      direction: "Direction"              # Direction of effects
+
+  LAMR:
+    file: "input/LAMR.ssf.tsv"
+    build: "hg19"
+    n_cases: 1363  # From OBS_CT in file (approximate split)
+    n_controls: 2345  # Adjust based on actual case/control ratio
+    study_type: "GWAS"
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      beta: "beta"                        # Beta coefficient (already calculated)
+      se: "standard_error"                # Standard error
+      p: "p_value"                        # P-value
+      n: "n"                              # Sample size per variant
+
+  MEX:
+    file: "input/MEX.ssf.tsv"
+    build: "hg19"
+    n_cases: 642  # From OBS_CT in file (approximate split)
+    n_controls: 969  # Adjust based on actual case/control ratio
+    study_type: "GWAS"
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      beta: "beta"                        # Beta coefficient (already calculated)
+      se: "standard_error"                # Standard error
+      p: "p_value"                        # P-value
+      n: "n"                              # Sample size per variant
+
+  MEX123:
+    file: "input/MEX123.ssf.tsv"
+    build: "hg19"
+    n_cases: 697  # From OBS_CT in file (approximate split)
+    n_controls: 824  # Adjust based on actual case/control ratio
+    study_type: "GWAS"
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      beta: "beta"                        # Beta coefficient (already calculated)
+      se: "standard_error"                # Standard error
+      p: "p_value"                        # P-value
+      n: "n"                              # Sample size per variant
+
+  MVP:
+    file: "input/MVP.tsv"
+    build: "hg38"
+    n_cases: 1965
+    n_controls: 630574
+    study_type: "GWAS"  # Or META if this is meta-analysis result
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      chrom: "chromosome"                 # Chromosome
+      pos: "base_pair_location"           # Position
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      or: "odds_ratio"                    # Odds ratio (only OR available, no BETA directly)
+      se: "standard_error"                # SE of log(OR)
+      p: "p_value"                        # P-value
+      n: "n"                              # Total sample size
+      het_i2: "i2"                        # Heterogeneity I² statistic
+      het_pval: "q_pval"                  # Heterogeneity p-value
+
+  Hisp:
+    file: "input/Hisp.tsv"
+    build: "hg38"
+    n_cases: 3018
+    n_controls: 5501
+    study_type: "META"  # Meta-analysis result
+    columns:
+      snpid: "snpid"                      # SNP identifier
+      chrom: "chrom"                      # Chromosome
+      pos: "pos"                          # Position
+      ea: "ea"                            # Effect allele
+      nea: "nea"                          # Non-effect/other allele
+      eaf: "eaf"                          # Effect allele frequency
+      beta: "beta"                        # Beta coefficient
+      se: "se"                            # Standard error
+      p: "p"                              # P-value
+      direction: "direction"              # Direction of effects
+      het_i2: "het_isq"                   # Heterogeneity I² statistic
+      het_chisq: "het_chisq"              # Heterogeneity chi-square
+      het_df: "het_df"                    # Heterogeneity degrees of freedom
+      het_pval: "het_pval"                # Heterogeneity p-value
+      markername: "markername"            # MarkerName
+
+# METAL configuration
+metal:
+  scheme: "STDERR"  # Options: STDERR (beta/se required) or SAMPLESIZE
+  # genomiccontrol: "ON"  # Apply genomic control correction (leave commented for manual control)
+  min_overlap: 2  # Minimum number of studies required per variant
+  study_combinations:
+#    hisp_mvp: ["MEX", "MEX123", "LAMR", "CLM", "MVP"]
+    hisp: ["MEX", "MEX123", "LAMR", "CLM"]
+#    hisp_mvp_metas: ["Hisp", "MVP"]
+  
+# Quality control thresholds
+qc:
+  min_info: 0.3      # Minimum imputation quality score
+  min_maf: 0.01      # Minimum minor allele frequency
+  max_pval: 1.0      # Maximum p-value (typically 1.0 to keep all)
+  min_sample_size: 100  # Minimum effective sample size per variant
+  het_pval_threshold: 0.001  # Heterogeneity p-value threshold
+  max_het_i2: 75     # Maximum I² statistic (0-100)
+
+# Resources paths
+resources:
+  liftover_chains:
+    hg19_to_hg38: "resources/liftover/hg19ToHg38.over.chain.gz"
+    hg38_to_hg19: "resources/liftover/hg38ToHg19.over.chain.gz"
+    hg18_to_hg19: "resources/liftover/hg18ToHg19.over.chain.gz"
+  reference_panels:
+    eur_freq: "resources/reference/1000g_EUR.frq.gz"
+    all_freq: "resources/reference/1000g_ALL.frq.gz"
+
+# Visualization settings
+visualization:
+  manhattan:
+    significance_threshold: 5e-8
+    suggestive_threshold: 1e-5
+    point_size: 1.5
+  qq_plot:
+    confidence_interval: 0.95
+  forest_plot:
+    max_variants: 50  # Top N variants to plot
+
+# Default computational resources
+default_resources:
+  mem_mb: 32000
+  cores: 2
+  time: "02:00:00"

@@ -1,0 +1,54 @@
+# Software modules and tool configurations
+# Each tool can specify either:
+#   - module: "module_name" (for module load command)
+#   - path: "/absolute/path/to/tool" (direct path, can use $(which tool_name))
+
+metal:
+  module: "metal"
+  # path: "/usr/local/bin/metal"  # Alternative: direct path
+  params:
+    scheme: "STDERR"  # or SAMPLESIZE
+    genomiccontrol: "ON"
+
+liftover:
+  module: "ucsc/20200225"
+  # path: "/path/to/liftOver"  # Alternative: direct path
+  binary: "liftOver"
+
+bcftools:
+  module: "bcftools/1.15"
+  # path: "/usr/local/bin/bcftools"  # Alternative: direct path
+  version: "1.15"
+  params:
+    threads: 2
+
+python:
+  module: "python/3.9"
+  # path: "/usr/bin/python3"  # Alternative: direct path
+  version: "3.9"
+  packages:
+    - "pandas"
+    - "numpy"
+    - "scipy"
+
+r:
+  module: "R/4.4.1-mkl"
+  # path: "/usr/bin/Rscript"  # Alternative: direct path
+  version: "4.4.1"
+  packages:
+    - "ggplot2"
+    - "data.table"
+    - "qqman"
+    - "gridExtra"
+
+plink2:
+  module: "plink2/2.00a3.3lm"
+  # path: "/usr/local/bin/plink2"  # Alternative: direct path
+  version: "2.00a3.3lm"
+  params:
+    memory: 32000
+    threads: 2
+
+tabix:
+  module: "tabix/1.15"
+  # path: "/usr/bin/tabix"  # Alternative: direct path
