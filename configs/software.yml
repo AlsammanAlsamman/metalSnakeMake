@@ -57,6 +57,42 @@ annovar:
   module: "annovar"
   # path: "/path/to/annovar"  # Alternative: direct path to ANNOVAR directory
 
-perl:
-  module: "perl/5.36"
-  # path: "/usr/bin/perl"  # Alternative: direct path
+plink:
+  module: "plink/1.90b6.21"
+  # path: "/usr/local/bin/plink"  # Alternative: direct path
+  version: "1.90b6.21"
+  params:
+    memory: 32000
+    threads: 8
+
+# Reference panels for LD-based loci identification
+# Each panel must have .bed/.bim/.fam files with the specified prefix
+reference_panels:
+  1000G_EUR:
+    bfile: "/path/to/reference/1000G_phase3_EUR_hg38"
+    description: "1000 Genomes Phase 3 - European ancestry (hg38)"
+    build: "hg38"
+    n_samples: 503
+  
+  1000G_AMR:
+    bfile: "/path/to/reference/1000G_phase3_AMR_hg38"
+    description: "1000 Genomes Phase 3 - Admixed American ancestry (hg38)"
+    build: "hg38"
+    n_samples: 347
+  
+  1000G_ALL:
+    bfile: "/path/to/reference/1000G_phase3_ALL_hg38"
+    description: "1000 Genomes Phase 3 - All populations (hg38)"
+    build: "hg38"
+    n_samples: 2504
+  
+  # HGDP_AMR:
+  #   bfile: "/path/to/reference/HGDP_AMR_hg38"
+  #   description: "Human Genome Diversity Project - American ancestry (hg38)"
+  #   build: "hg38"
+  #   n_samples: 63
+
+# perl:
+#   module: "perl/5.36"
+#   # path: "/usr/bin/perl"  # Alternative: direct path
+#   # Note: Perl is usually available by default, no module needed

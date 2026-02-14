@@ -90,3 +90,14 @@
 
 # Step 9 (dry run to check configuration):
 # ./submit.sh --snakefile rules/09_annovar_annotate.smk --cores 1 --jobs 10 --dry-run
+
+
+# Step 10: Identify Genomic Loci - LD-based clumping to identify independent risk loci
+# Process all combinations in parallel (1 job per combination, 8 cores each)
+./submit.sh --snakefile rules/10_loci_identification.smk --cores 8 --jobs 10
+
+# Step 10 (single combination test):
+# ./submit.sh --snakefile rules/10_loci_identification.smk results/10_loci/hisp/hisp_loci.done
+
+# Step 10 (dry run to check configuration):
+# ./submit.sh --snakefile rules/10_loci_identification.smk --cores 8 --jobs 10 --dry-run

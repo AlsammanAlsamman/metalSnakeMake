@@ -213,7 +213,7 @@ qc:
 enrichment:
   mpra:
     file: "resources/MPRA/MPRA_hg38.txt"  # MPRA database file path
-    fdr_threshold: 0.05                    # FDR threshold for filtering MPRA records
+    fdr_threshold: 1                    # FDR threshold for filtering MPRA records
     excel_pvalue_threshold: 0.005          # P-value threshold for Excel output (5e-3)
   
   annovar:
@@ -221,6 +221,45 @@ enrichment:
     protocols: ["refGene"]                 # Annotation protocols to use
     operations: ["g"]                      # g=gene-based annotation
     excel_pvalue_threshold: 0.005          # P-value threshold for Excel output (5e-3)
+
+# Genomic loci identification settings
+# Each study combination specifies its reference panel and LD parameters
+loci_identification:
+  hisp:
+    reference_panel: "1000G_AMR"  # Reference panel name from software.yml
+    leadP: 5e-8                    # P-value threshold for independent significant SNPs
+    gwasP: 1e-5                    # P-value threshold for SNPs in LD window
+    r2: 0.6                        # LD r² threshold for building candidate windows
+    r2_2: 0.1                      # LD r² threshold to group independent SNPs into same lead
+    mergeDist: 250                 # Distance (kb) to merge nearby loci
+    maf: 0.01                      # Minimum MAF in reference panel
+    windowKb: 500                  # Max window (kb) for LD queries
+    threads: 8                     # Number of threads for PLINK
+    refSNPs: 1                     # Include reference-only SNPs (1=yes, 0=no)
+  
+  # chi:
+  #   reference_panel: "1000G_AMR"
+  #   leadP: 5e-8
+  #   gwasP: 1e-5
+  #   r2: 0.6
+  #   r2_2: 0.1
+  #   mergeDist: 250
+  #   maf: 0.01
+  #   windowKb: 500
+  #   threads: 8
+  #   refSNPs: 1
+  
+  # eur:
+  #   reference_panel: "1000G_EUR"  # Use European reference for EUR meta-analysis
+  #   leadP: 5e-8
+  #   gwasP: 1e-5
+  #   r2: 0.6
+  #   r2_2: 0.1
+  #   mergeDist: 250
+  #   maf: 0.01
+  #   windowKb: 500
+  #   threads: 8
+  #   refSNPs: 1
 
 # Resources paths
 resources:

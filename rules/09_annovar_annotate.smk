@@ -22,9 +22,8 @@ COMBINATIONS = get_metal_combinations()
 # Get target build (hg38 or hg19)
 TARGET_BUILD = get_analysis_value(['target_build'])
 
-# Get ANNOVAR module and perl
+# Get ANNOVAR module (perl is usually available by default)
 ANNOVAR_MODULE = get_software_module('annovar')
-PERL_MODULE = get_software_module('perl', required=False, default='perl/5.36')
 
 # ANNOVAR enrichment parameters from config
 ANNOVAR_HUMANDB = get_analysis_value(['enrichment', 'annovar', 'humandb'])
@@ -63,7 +62,6 @@ rule annovar_annotate:
     params:
         combination = "{combination}",
         annovar_module = ANNOVAR_MODULE,
-        perl_module = PERL_MODULE,
         r_module = R_MODULE,
         buildver = TARGET_BUILD,
         humandb = ANNOVAR_HUMANDB,
@@ -78,12 +76,12 @@ rule annovar_annotate:
     shell:
         """
         set +u
-        module load {params.perl_module}
         module load {params.annovar_module}
         module load {params.r_module}
         set -u
         
         mkdir -p {params.outdir}
+        mkdir -p $(dirname {log})
         
         # Run annotation and merging script
         bash scripts/annotate_annovar.sh \

@@ -87,3 +87,5 @@ resources/
 test_eaf/
 logs/
 scriptWeneed/
+
+test_*

@@ -11,6 +11,7 @@ suppressPackageStartupMessages({
 option_list <- list(
   make_option(c("--input"), type="character", help="Input meta-analysis enriched file"),
   make_option(c("--annovar"), type="character", help="ANNOVAR annotation output file"),
+  make_option(c("--markername_map"), type="character", help="Markername mapping file (merge_key -> markername)"),
   make_option(c("--output"), type="character", help="Output annotated TSV file"),
   make_option(c("--output_excel"), type="character", help="Output Excel file"),
   make_option(c("--excel_pval"), type="numeric", help="P-value threshold for Excel output"),
@@ -44,16 +45,24 @@ annovar_dt <- fread(opt$annovar, sep="\t", header=TRUE, stringsAsFactors=FALSE)
 cat("ANNOVAR records:", nrow(annovar_dt), "\n")
 cat("ANNOVAR columns:", paste(names(annovar_dt), collapse=", "), "\n\n")
 
-# ANNOVAR output includes the key in "Otherinfo1" column (last column we added)
-# Rename for clarity
-if ("Otherinfo1" %in% names(annovar_dt)) {
-  setnames(annovar_dt, "Otherinfo1", "markername")
-}
+# Read markername mapping file (merge_key -> markername)
+cat("Reading markername mapping file:", opt$markername_map, "\n")
+map_dt <- fread(opt$markername_map, sep="\t", header=FALSE, stringsAsFactors=FALSE)
+setnames(map_dt, c("merge_key", "markername"))
+cat("Mapping records:", nrow(map_dt), "\n")
+cat("Sample mappings (first 5):\n")
+print(head(map_dt, 5))
+cat("\n")
 
-# Check if markername exists
-if (!"markername" %in% names(annovar_dt)) {
-  stop("ERROR: markername column not found in ANNOVAR output")
-}
+# Add markername to ANNOVAR annotations by matching Chr:Start:Ref:Alt
+cat("Adding markername to ANNOVAR annotations...\n")
+annovar_dt[, merge_key := paste(Chr, Start, Ref, Alt, sep=":")]
+cat("Sample ANNOVAR merge keys (first 5):", paste(head(annovar_dt$merge_key, 5), collapse=", "), "\n")
+annovar_dt <- merge(annovar_dt, map_dt, by="merge_key", all.x=TRUE)
+n_matched <- sum(!is.na(annovar_dt$markername))
+cat("Matched", n_matched, "out of", nrow(annovar_dt), "ANNOVAR records to markernames\n")
+annovar_dt[, merge_key := NULL]  # Remove temporary key
+cat("\n")
 
 # Select ANNOVAR annotation columns (exclude input columns: Chr, Start, End, Ref, Alt)
 annovar_cols <- setdiff(names(annovar_dt), c("Chr", "Start", "End", "Ref", "Alt"))
@@ -77,65 +86,14 @@ cat("Writing TSV output...\n")
 fwrite(annotated_dt, opt$output, sep="\t", quote=FALSE, na="NA")
 cat("TSV output written:", opt$output, "\n\n")
 
-# Filter for Excel output using threshold from config
-cat("Filtering variants for Excel output (p <", opt$excel_pval, ")...\n")
-excel_dt <- annotated_dt[p < opt$excel_pval]
-cat("Variants for Excel:", nrow(excel_dt), "\n\n")
-
-# Create Excel output with formatting
-cat("Creating Excel output with formatting...\n")
-wb <- createWorkbook()
-addWorksheet(wb, "ANNOVAR_Annotated")
-
-# Write data
-writeData(wb, "ANNOVAR_Annotated", excel_dt)
-
-# Format header
-headerStyle <- createStyle(
-  fontSize = 12,
-  fontColour = "#FFFFFF",
-  halign = "center",
-  fgFill = "#4F81BD",
-  border = "TopBottom",
-  borderColour = "#4F81BD",
-  textDecoration = "bold"
-)
-addStyle(wb, sheet = "ANNOVAR_Annotated", headerStyle, rows = 1, cols = 1:ncol(excel_dt), gridExpand = TRUE)
-
-# Freeze first row
-freezePane(wb, "ANNOVAR_Annotated", firstRow = TRUE)
-
-# Highlight SNPs with ANNOVAR annotations
-if (n_with_annotation > 0 && nrow(excel_dt) > 0) {
-  annotated_rows <- which(!is.na(excel_dt$Func.refGene)) + 1  # +1 for header
-  if (length(annotated_rows) > 0) {
-    annotated_style <- createStyle(fgFill = "#E6F3FF")
-    addStyle(wb, sheet = "ANNOVAR_Annotated", annotated_style, rows = annotated_rows, cols = 1:ncol(excel_dt), gridExpand = TRUE)
-    cat("Highlighted", length(annotated_rows), "rows with ANNOVAR annotation\n")
-  }
-}
-
-# Highlight genome-wide significant SNPs (p < 5e-8) in different color
-sig_rows <- which(excel_dt$p < 5e-8) + 1  # +1 for header
-if (length(sig_rows) > 0) {
-  sig_style <- createStyle(fgFill = "#FFE6E6", textDecoration = "bold")
-  addStyle(wb, sheet = "ANNOVAR_Annotated", sig_style, rows = sig_rows, cols = 1:ncol(excel_dt), gridExpand = TRUE, stack = TRUE)
-  cat("Highlighted", length(sig_rows), "rows with p < 5e-8\n")
-}
-
-# Auto-size columns
-setColWidths(wb, sheet = "ANNOVAR_Annotated", cols = 1:ncol(excel_dt), widths = "auto")
-
-# Save Excel file
-saveWorkbook(wb, opt$output_excel, overwrite = TRUE)
-cat("Excel output written:", opt$output_excel, "\n\n")
-
 cat("=== ANNOVAR Annotation Merge Complete ===\n")
 cat("Total variants:", nrow(annotated_dt), "\n")
 cat("Variants with ANNOVAR annotation:", n_with_annotation, "\n")
-cat("Variants in Excel (p <", opt$excel_pval, "):", nrow(excel_dt), "\n")
+cat("SNPs without ANNOVAR annotation:", n_without_annotation, "\n\n")
 
-# Close log
+cat("Excel file creation will be handled by separate script\n")
+
+# Close log sinks  
 sink(type="message")
 sink(type="output")
-close(log_con)
+

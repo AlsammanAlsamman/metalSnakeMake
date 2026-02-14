@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Step 08: Enrich Meta-Analysis with MPRA Functional Data
-Match meta-analysis SNPs with MPRA database by chr+pos.
+Step 08: Enrich ANNOVAR-Annotated Meta-Analysis with MPRA Functional Data
+Match ANNOVAR-annotated SNPs with MPRA database by chr+pos.
 Aggregate multiple MPRA records per SNP.
 Filter MPRA for fdr < 0.05 before matching.
 """
@@ -37,7 +37,7 @@ rule all:
 
 rule enrich_mpra:
     """
-    Enrich meta-analysis results with MPRA functional data.
+    Enrich ANNOVAR-annotated results with MPRA functional data.
     - Filter MPRA for fdr < 0.05
     - Match by chr+pos (ignore alleles)
     - Aggregate multiple MPRA records per SNP:
@@ -48,8 +48,8 @@ rule enrich_mpra:
     - Generate Excel with SNPs p < 5e-3
     """
     input:
-        meta = "results/07_enriched/{combination}/{combination}_enriched.tsv",
-        done = "results/07_enriched/{combination}/{combination}.done",
+        meta = "results/09_annovar_annotated/{combination}/{combination}_annotated.tsv",
+        done = "results/09_annovar_annotated/{combination}/{combination}.done",
         mpra = MPRA_FILE
     output:
         tsv = "results/08_mpra_enriched/{combination}/{combination}_mpra_enriched.tsv",
