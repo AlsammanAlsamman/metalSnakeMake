@@ -18,6 +18,18 @@
 # ./submit.sh --snakefile rules/00_standardize.smk --cores 2 --jobs 7
 
 
+# Step 0b: Map SNP IDs (rsID) from SNPdb - chromosome split + allele harmonization
+# Process all datasets in parallel (7 SLURM jobs)
+bash ./scripts/submit_snpid_map.sh
+
+
+# Step 0b (alternative - all datasets via command line):
+# ./submit.sh --snakefile rules/00b_map_snpid.smk --cores 2 --jobs 7
+
+# Step 0b (Asian only):
+# ./submit.sh --snakefile rules/00b_map_snpid.smk /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/snpdmapped/Asian.done
+
+
 # Step 1: Calculate Missing Columns - Calculate SE from beta, eaf, n_cases, n_controls
 # Process all datasets in parallel (7 SLURM jobs)
 ./scripts/submit_calculate_missing.sh
