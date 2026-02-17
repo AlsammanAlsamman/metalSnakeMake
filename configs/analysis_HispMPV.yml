@@ -189,28 +189,6 @@ datasets:
       het_df: "het_df"                    # Heterogeneity degrees of freedom
       het_pval: "het_pval"                # Heterogeneity p-value
       markername: "markername"            # MarkerName
-  Asian:
-    file: "input/Asian.tsv"
-    build: "hg19"
-    n_cases: 500
-    n_controls: 1000
-    study_type: "GWAS"
-    columns:
-      variant_id: "MarkerName"                 # SNP identifier (using MarkerName as proxy for rsID)
-      chrom: "chr"                        # Chromosome
-      pos: "pos"                          # Position
-      ea: "Allele2"                       # Effect allele
-      nea: "Allele1"                      # Non-effect/other allele
-      beta: "Effect"                      # Beta coefficient (available as Effect)
-      se: "StdErr"                        # Standard error
-      p: "P-value"                        # P-value
-      n: "TotalSampleSize"                # Total sample size
-      het_i2: "HetISq"                    # Heterogeneity I² statistic
-      het_pval: "HetPVal"                 # Heterogeneity p-value
-      direction: "Direction"              # Direction of effects
-      n_cases: "79801"                      # Number of cases (not provided, set to NA)
-      n_controls: "79802"                   # Number of controls (not provided, set to NA
-      n_sample_size: "159603"                    # Sample size per variant (not provided, set to NA)
 
 # METAL configuration
 metal:
@@ -219,9 +197,8 @@ metal:
   min_overlap: 2  # Minimum number of studies required per variant
   study_combinations:
 #    hisp_mvp: ["MEX", "MEX123", "LAMR", "CLM", "MVP"]
-    # hisp: ["MEX", "MEX123", "LAMR", "CLM"]
+    hisp: ["MEX", "MEX123", "LAMR", "CLM"]
 #    hisp_mvp_metas: ["Hisp", "MVP"]
-    Asian_EUR: ["Asian", "EUR"]
   
 # Quality control thresholds
 qc:

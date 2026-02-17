@@ -93,3 +93,7 @@ test_*
 *.zip
 *.out
 *.tbl
+*.done
+*.tsv
+*.metal
+results*/

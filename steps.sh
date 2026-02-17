@@ -2,6 +2,13 @@
 # METAL Meta-Analysis Pipeline Execution Steps
 # Each step can be run independently - previous steps must complete successfully (check .done files)
 
+# Step -1: Split SNPdb by chromosome - Pre-split build VCFs for faster parallel rsID annotation
+# ./utility_scripts/split_snpdb_by_chr.sh --input-dir resources/SNPdb --output-root resources/SNPdb/by_chr --workers 16
+
+
+# Step -1 (alternative with overwrite of existing split files):
+# ./utility_scripts/split_snpdb_by_chr.sh --input-dir resources/SNPdb --output-root resources/SNPdb/by_chr --workers 16 --force
+
 # Step 0: Standardization - Extract required columns and standardize column names
 # Process all 7 datasets in parallel (7 SLURM jobs)
 ./scripts/submit_standardize.sh
