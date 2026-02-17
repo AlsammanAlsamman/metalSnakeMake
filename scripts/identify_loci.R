@@ -34,7 +34,8 @@ option_list <- list(
   make_option("--maf", type="double", default=0.01, help="Minimum MAF in reference panel"),
   make_option("--refSNPs", type="integer", default=1, help="Include reference-only SNPs (1=yes, 0=no)"),
   make_option("--windowKb", type="integer", default=500, help="Max window (kb) for PLINK LD queries"),
-  make_option("--threads", type="integer", default=8, help="Number of threads for PLINK")
+  make_option("--threads", type="integer", default=8, help="Number of threads for PLINK"),
+  make_option("--plink", type="character", default="plink", help="PLINK command or path (default: plink)")
 )
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -71,18 +72,20 @@ message(sprintf("  Loaded %d variants from meta-analysis", nrow(meta)))
 
 # Normalize column names
 colnames(meta) <- trimws(colnames(meta))
+message(sprintf("  Column names: %s", paste(colnames(meta), collapse=", ")))
 col_map <- list(
-  markername = c("markername", "snp", "rsid", "id", "variant_id", "MarkerName"),
-  chr = c("Chr", "chr", "chromosome", "CHR", "Chromosome"),
-  pos = c("Pos", "pos", "position", "bp", "BP", "Position"),
-  pval = c("P-value", "p-value", "pval", "p", "P", "Pvalue"),
-  a1 = c("Allele1", "allele1", "a1", "effect_allele", "EA"),
-  a2 = c("Allele2", "allele2", "a2", "other_allele", "OA")
+  markername = c("markername", "MarkerName", "snpid", "snp", "rsid", "id", "variant_id"),
+  chr = c("chrom", "CHROM", "Chr", "chr", "chromosome", "CHR", "Chromosome"),
+  pos = c("pos", "Pos", "position", "bp", "BP", "Position"),
+  pval = c("p", "P", "P-value", "p-value", "pval", "Pvalue"),
+  a1 = c("ea", "EA", "Allele1", "allele1", "a1", "effect_allele"),
+  a2 = c("nea", "NEA", "Allele2", "allele2", "a2", "other_allele", "OA")
 )
 
 for (target in names(col_map)) {
   candidates <- col_map[[target]]
   hit <- intersect(candidates, colnames(meta))
+  message(sprintf("  Target '%s': candidates=%s, hit=%s", target, paste(candidates[1:3], collapse=","), paste(hit, collapse=",")))
   if (length(hit) == 0) stop(sprintf("Could not find column for %s in meta file", target))
   if (hit[1] != target) setnames(meta, hit[1], target)
 }
@@ -112,14 +115,22 @@ if (file.exists(subset_bim)) {
 } else {
   message("  Creating reference panel subset (this may take a few minutes)...")
   
-  # Write SNP list for extraction
+  # Write SNP list for extraction using rsID (snpid column, not markername)
+  # Reference panel uses rsIDs, not chr:pos:rsid format
   snp_list_file <- tempfile(pattern = "snp_extract_", fileext = ".txt")
-  fwrite(data.table(SNP = unique(meta$markername)), snp_list_file, col.names = FALSE)
+  # Use the original snpid column which contains rsIDs
+  if ("snpid" %in% colnames(meta)) {
+    fwrite(data.table(SNP = unique(meta$snpid)), snp_list_file, col.names = FALSE)
+  } else {
+    # Fallback: extract rsID from markername if snpid not available
+    rsids <- unique(gsub(".*:", "", meta$markername))
+    fwrite(data.table(SNP = rsids), snp_list_file, col.names = FALSE)
+  }
   
   # Run PLINK to extract SNPs
   plink_cmd <- sprintf(
-    "plink --bfile %s --extract %s --make-bed --out %s --threads %d",
-    opt$`ref-bfile`, snp_list_file, subset_prefix, opt$threads
+    "%s --bfile %s --extract %s --make-bed --allow-extra-chr --out %s --threads %d",
+    opt$plink, opt$`ref-bfile`, snp_list_file, subset_prefix, opt$threads
   )
   
   message(sprintf("  Running: %s", plink_cmd))
@@ -143,9 +154,16 @@ bim <- fread(subset_bim, header = FALSE)
 setnames(bim, c("chr", "rsid", "cm", "bp", "a1", "a2"))
 message(sprintf("  Reference subset contains %d SNPs", nrow(bim)))
 
-# Filter meta to SNPs in reference
-meta <- meta[markername %chin% bim$rsid]
-message(sprintf("  %d meta SNPs matched to reference panel", nrow(meta)))
+# Filter meta to SNPs in reference (match by rsID from snpid column)
+if ("snpid" %in% colnames(meta)) {
+  meta <- meta[snpid %chin% bim$rsid]
+  message(sprintf("  %d meta SNPs matched to reference panel", nrow(meta)))
+} else {
+  # Fallback: extract rsID from markername
+  meta[, rsid_extracted := gsub(".*:", "", markername)]
+  meta <- meta[rsid_extracted %chin% bim$rsid]
+  message(sprintf("  %d meta SNPs matched to reference panel", nrow(meta)))
+}
 
 if (nrow(meta) == 0) stop("No SNPs from meta-analysis found in reference panel")
 
@@ -158,8 +176,8 @@ freq_file <- paste0(freq_prefix, ".frq")
 
 if (!file.exists(freq_file)) {
   freq_cmd <- sprintf(
-    "plink --bfile %s --freq --out %s --threads %d",
-    subset_prefix, freq_prefix, opt$threads
+    "%s --bfile %s --freq --allow-extra-chr --out %s --threads %d",
+    opt$plink, subset_prefix, freq_prefix, opt$threads
   )
   system(freq_cmd, intern = FALSE)
 }
@@ -200,8 +218,16 @@ if (nrow(sig_snps) == 0) {
 }
 
 # Apply MAF filter using reference frequencies
-sig_snps_maf <- merge(sig_snps, ref_freq[, .(SNP, MAF)], 
-                      by.x = "markername", by.y = "SNP", all.x = TRUE)
+# Match by rsID (snpid column)
+if ("snpid" %in% colnames(sig_snps)) {
+  sig_snps_maf <- merge(sig_snps, ref_freq[, .(SNP, MAF)], 
+                        by.x = "snpid", by.y = "SNP", all.x = TRUE)
+} else {
+  # Fallback: extract rsID from markername
+  sig_snps[, rsid_extracted := gsub(".*:", "", markername)]
+  sig_snps_maf <- merge(sig_snps, ref_freq[, .(SNP, MAF)], 
+                        by.x = "rsid_extracted", by.y = "SNP", all.x = TRUE)
+}
 sig_snps_maf <- sig_snps_maf[is.na(MAF) | MAF >= opt$maf]
 message(sprintf("  %d SNPs pass MAF >= %g filter", nrow(sig_snps_maf), opt$maf))
 
@@ -230,13 +256,18 @@ if (nrow(sig_snps_maf) == 0) {
 message("  Performing LD-based clumping...")
 
 clump_file <- file.path(opt$`temp-dir`, sprintf("%s_clump_input.txt", opt$combination))
-clump_snps <- sig_snps_maf[, .(SNP = markername, P = pval)]
+# Use snpid (rsID) for clumping, not markername
+if ("snpid" %in% colnames(meta)) {
+  clump_snps <- meta[, .(SNP = snpid, P = pval)]
+} else {
+  clump_snps <- meta[, .(SNP = gsub(".*:", "", markername), P = pval)]
+}
 fwrite(clump_snps, clump_file, sep = "\t")
 
 clump_prefix <- file.path(opt$`temp-dir`, sprintf("%s_clump", opt$combination))
 clump_cmd <- sprintf(
-  "plink --bfile %s --clump %s --clump-p1 %g --clump-p2 %g --clump-r2 %g --clump-kb %d --out %s --threads %d",
-  subset_prefix, clump_file, opt$leadP, opt$gwasP, opt$r2, opt$windowKb, clump_prefix, opt$threads
+  "%s --bfile %s --clump %s --clump-p1 %g --clump-p2 %g --clump-r2 %g --clump-kb %d --allow-extra-chr --out %s --threads %d",
+  opt$plink, subset_prefix, clump_file, opt$leadP, opt$gwasP, opt$r2, opt$windowKb, clump_prefix, opt$threads
 )
 
 system(clump_cmd, intern = FALSE)
@@ -244,10 +275,21 @@ system(clump_cmd, intern = FALSE)
 clump_result_file <- paste0(clump_prefix, ".clumped")
 if (!file.exists(clump_result_file)) {
   warning("PLINK clumping did not produce output. Using all significant SNPs as independent.")
-  lead_snps <- sig_snps_maf[, .(markername, chr, pos, pval)]
+  if ("snpid" %in% colnames(sig_snps_maf)) {
+    lead_snps <- sig_snps_maf[, .(snpid, markername, chr, pos, pval)]
+  } else {
+    lead_snps <- sig_snps_maf[, .(markername, chr, pos, pval)]
+  }
 } else {
   clumped <- fread(clump_result_file)
-  lead_snps <- sig_snps_maf[markername %chin% clumped$SNP]
+  # Match clumped SNPs using rsID (snpid column)
+  if ("snpid" %in% colnames(sig_snps_maf)) {
+    lead_snps <- sig_snps_maf[snpid %chin% clumped$SNP]
+  } else {
+    # Fallback: extract rsID from markername
+    sig_snps_maf[, rsid_extracted := gsub(".*:", "", markername)]
+    lead_snps <- sig_snps_maf[rsid_extracted %chin% clumped$SNP]
+  }
 }
 
 message(sprintf("  Identified %d independent lead SNPs", nrow(lead_snps)))
@@ -269,20 +311,23 @@ for (chrom in chroms) {
   
   if (nrow(chr_leads) == 0) next
   
+  # Use snpid (rsID) for lead identification if available
+  lead_id_col <- if ("snpid" %in% colnames(chr_leads)) "snpid" else "markername"
+  
   # Merge nearby leads
   current_start <- chr_leads$pos[1]
   current_end <- chr_leads$pos[1]
-  current_leads <- chr_leads$markername[1]
+  current_leads <- chr_leads[[lead_id_col]][1]
   current_top_p <- chr_leads$pval[1]
-  current_top_snp <- chr_leads$markername[1]
+  current_top_snp <- chr_leads[[lead_id_col]][1]
   
   for (i in seq_len(nrow(chr_leads))) {
     if (i == 1) next
     
-    if (chr_leads$pos[i] - current_end <= merge_bp) {
-      # Merge into current locus
-      current_end <- chr_leads$pos[i]
-      current_leads <- paste(current_leads, chr_leads$markername[i], sep = ";")
+    if (chr_leads$pos[i] - current_end <= merge_bp) {[[lead_id_col]][i], sep = ";")
+      if (chr_leads$pval[i] < current_top_p) {
+        current_top_p <- chr_leads$pval[i]
+        current_top_snp <- chr_leads[[lead_id_col]]_leads$markername[i], sep = ";")
       if (chr_leads$pval[i] < current_top_p) {
         current_top_p <- chr_leads$pval[i]
         current_top_snp <- chr_leads$markername[i]
@@ -306,9 +351,9 @@ for (chrom in chroms) {
       )
       locus_id <- locus_id + 1
       
-      # Start new locus
-      current_start <- chr_leads$pos[i]
-      current_end <- chr_leads$pos[i]
+      # Start new locus[[lead_id_col]][i]
+      current_top_p <- chr_leads$pval[i]
+      current_top_snp <- chr_leads[[lead_id_col]]
       current_leads <- chr_leads$markername[i]
       current_top_p <- chr_leads$pval[i]
       current_top_snp <- chr_leads$markername[i]

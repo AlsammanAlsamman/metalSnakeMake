@@ -89,3 +89,7 @@ logs/
 scriptWeneed/
 
 test_*
+*.xlsx
+*.zip
+*.out
+*.tbl

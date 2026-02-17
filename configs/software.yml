@@ -58,7 +58,7 @@ annovar:
   # path: "/path/to/annovar"  # Alternative: direct path to ANNOVAR directory
 
 plink:
-  module: "plink/1.90b6.21"
+  module: "plink2/1.90b3w"
   # path: "/usr/local/bin/plink"  # Alternative: direct path
   version: "1.90b6.21"
   params:
@@ -67,30 +67,38 @@ plink:
 
 # Reference panels for LD-based loci identification
 # Each panel must have .bed/.bim/.fam files with the specified prefix
+# Note: Reference files are currently gzipped - they need to be unzipped before use
+# To unzip: cd resources/reference && gunzip *.gz
 reference_panels:
   1000G_EUR:
-    bfile: "/path/to/reference/1000G_phase3_EUR_hg38"
-    description: "1000 Genomes Phase 3 - European ancestry (hg38)"
+    bfile: "resources/reference/1kGP.EUR"
+    description: "1000 Genomes Phase 3 - European ancestry"
     build: "hg38"
     n_samples: 503
   
   1000G_AMR:
-    bfile: "/path/to/reference/1000G_phase3_AMR_hg38"
-    description: "1000 Genomes Phase 3 - Admixed American ancestry (hg38)"
+    bfile: "resources/reference/1kGP.AMR"
+    description: "1000 Genomes Phase 3 - Admixed American ancestry"
     build: "hg38"
     n_samples: 347
   
-  1000G_ALL:
-    bfile: "/path/to/reference/1000G_phase3_ALL_hg38"
-    description: "1000 Genomes Phase 3 - All populations (hg38)"
+  1000G_EAS:
+    bfile: "resources/reference/1kGP.EAS"
+    description: "1000 Genomes Phase 3 - East Asian ancestry"
     build: "hg38"
-    n_samples: 2504
+    n_samples: 504
   
-  # HGDP_AMR:
-  #   bfile: "/path/to/reference/HGDP_AMR_hg38"
-  #   description: "Human Genome Diversity Project - American ancestry (hg38)"
-  #   build: "hg38"
-  #   n_samples: 63
+  1000G_AFR:
+    bfile: "resources/reference/1kGP.AFR"
+    description: "1000 Genomes Phase 3 - African ancestry"
+    build: "hg38"
+    n_samples: 661
+  
+  1000G_SAS:
+    bfile: "resources/reference/1kGP.SAS"
+    description: "1000 Genomes Phase 3 - South Asian ancestry"
+    build: "hg38"
+    n_samples: 489
 
 # perl:
 #   module: "perl/5.36"

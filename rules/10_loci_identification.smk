@@ -14,19 +14,34 @@ Output: GenomicRiskLoci.txt with independent loci definitions
 import sys
 import os
 sys.path.append("utils")
-from bioconfigme import get_results_dir, get_software_module, get_config
+from bioconfigme import get_results_dir, get_software_module, get_analysis_value
 
 # Load configuration
-config_data = get_config()
 results_dir = get_results_dir()
 
 # Get loci identification parameters for each combination
-loci_config = config_data.get("loci_identification", {})
-reference_panels = config_data.get("reference_panels", {})
+loci_config = get_analysis_value(['loci_identification'], default={})
+
+# Get reference panels configuration
+reference_panels = get_analysis_value(['reference_panels'], default={}, required=False)
+if not reference_panels:
+    # Try from software.yml if not in analysis.yml
+    import yaml
+    with open('configs/software.yml', 'r') as f:
+        software_config = yaml.safe_load(f)
+        reference_panels = software_config.get('reference_panels', {})
+
+# Default target rule
+rule all:
+    input:
+        expand(
+            os.path.join(results_dir, "10_loci", "{combination}", "{combination}_loci.done"),
+            combination=loci_config.keys()
+        )
 
 rule loci_identification:
     input:
-        meta = os.path.join(results_dir, "06_metal_standardized", "{combination}", "{combination}.tsv")
+        meta = os.path.join(results_dir, "06_metal_standardized", "{combination}", "{combination}_standardized.tsv")
     output:
         done = os.path.join(results_dir, "10_loci", "{combination}", "{combination}_loci.done"),
         loci = os.path.join(results_dir, "10_loci", "{combination}", "GenomicRiskLoci.txt")
@@ -45,10 +60,12 @@ rule loci_identification:
         maf = lambda wildcards: loci_config.get(wildcards.combination, {}).get("maf", 0.01),
         windowKb = lambda wildcards: loci_config.get(wildcards.combination, {}).get("windowKb", 500),
         threads = lambda wildcards: loci_config.get(wildcards.combination, {}).get("threads", 8),
-        refSNPs = lambda wildcards: loci_config.get(wildcards.combination, {}).get("refSNPs", 1)
+        refSNPs = lambda wildcards: loci_config.get(wildcards.combination, {}).get("refSNPs", 1),
+        plink_module = get_software_module("plink"),
+        r_module = get_software_module("r")
     log:
-        out = os.path.join(results_dir, "log", "identify_loci_{combination}_{jobid}.out"),
-        err = os.path.join(results_dir, "log", "identify_loci_{combination}_{jobid}.err")
+        out = os.path.join(results_dir, "log", "identify_loci_{combination}.out"),
+        err = os.path.join(results_dir, "log", "identify_loci_{combination}.err")
     resources:
         mem_mb = 64000,
         time = "02:00:00",
@@ -56,8 +73,8 @@ rule loci_identification:
     shell:
         """
         # Load required modules
-        module load {get_software_module("plink")} 2>/dev/null || true
-        module load {get_software_module("R")}
+        module load {params.plink_module} 2>/dev/null || true
+        module load {params.r_module}
         
         # Create output and temp directories
         mkdir -p {params.outdir}
@@ -80,6 +97,7 @@ rule loci_identification:
             --windowKb {params.windowKb} \
             --threads {params.threads} \
             --refSNPs {params.refSNPs} \
+            --plink plink \
             > {log.out} 2> {log.err}
         
         # Create done marker
@@ -91,11 +109,3 @@ rule loci_identification:
             exit 1
         fi
         """
-
-# Target rule for running all combinations
-rule all_loci:
-    input:
-        expand(
-            os.path.join(results_dir, "10_loci", "{combination}", "{combination}_loci.done"),
-            combination=loci_config.keys()
-        )
