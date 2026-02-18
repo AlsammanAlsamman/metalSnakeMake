@@ -68,7 +68,7 @@ if [[ "$INDIVIDUAL_RULE" == true ]]; then
     DEFAULT_JOBS=1
     DEFAULT_MEM="32G"
     DEFAULT_TIME="2:00:00"
-    DEFAULT_CPUS=2
+    DEFAULT_CPUS="${CORES:-2}"
 else
     # Full pipeline defaults
     DEFAULT_SNAKEFILE="${SNAKEFILE:-Snakefile}"

@@ -6,6 +6,12 @@ suppressPackageStartupMessages({
   library(optparse)
 })
 
+log_msg <- function(...) {
+  msg <- paste0(..., collapse = "")
+  cat(sprintf("[%s] %s\n", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), msg))
+  flush.console()
+}
+
 option_list <- list(
   make_option("--dataset", type = "character"),
   make_option("--build", type = "character"),
@@ -35,9 +41,14 @@ get_opt <- function(opts, keys) {
 # Normalize option aliases for hyphen/dot/underscore naming differences in optparse
 opt$snpdb_root <- get_opt(opt, c("snpdb_root", "snpdb-root", "snpdb.root"))
 opt$temp_dir <- get_opt(opt, c("temp_dir", "temp-dir", "temp.dir"))
+opt$unmapped_pos_limit <- get_opt(opt, c("unmapped_pos_limit", "unmapped-pos-limit", "unmapped.pos.limit"))
 
 unmapped_file <- file.path(dirname(opt$summary), sprintf("%s_unmapped.tsv", opt$dataset))
 unmapped_pos_lookup_file <- file.path(dirname(opt$summary), sprintf("%s_unmapped_pos_lookup.tsv", opt$dataset))
+
+if (is.null(opt$unmapped_pos_limit)) {
+  opt$unmapped_pos_limit <- 50L
+}
 
 required <- c("dataset", "build", "input", "output", "done", "summary", "log", "snpdb_root", "temp_dir")
 missing_required <- required[sapply(required, function(k) is.null(opt[[k]]) || !nzchar(opt[[k]]))]
@@ -57,6 +68,21 @@ normalize_chr <- function(x) {
   x
 }
 
+chrom_aliases <- function(chrom_norm) {
+  ch <- toupper(as.character(chrom_norm))
+  out <- c(ch)
+
+  if (ch == "23") out <- c(out, "X")
+  if (ch == "24") out <- c(out, "Y")
+  if (ch == "25") out <- c(out, "MT", "M")
+
+  if (ch == "X") out <- c(out, "23")
+  if (ch == "Y") out <- c(out, "24")
+  if (ch %in% c("MT", "M")) out <- c(out, "25")
+
+  unique(out)
+}
+
 complement_allele <- function(x) {
   x <- toupper(as.character(x))
   chartr("ACGT", "TGCA", x)
@@ -74,10 +100,11 @@ build_to_keys <- function(build) {
 }
 
 find_chr_vcf <- function(snpdb_root, build_info, chrom_norm) {
+  aliases <- chrom_aliases(chrom_norm)
   chrom_candidates <- unique(c(
-    chrom_norm,
-    paste0("chr", chrom_norm),
-    if (chrom_norm == "MT") c("M", "chrM") else character(0)
+    aliases,
+    paste0("chr", aliases),
+    if (any(aliases %in% c("MT", "M"))) c("M", "chrM") else character(0)
   ))
 
   path_candidates <- character(0)
@@ -99,10 +126,11 @@ find_chr_vcf <- function(snpdb_root, build_info, chrom_norm) {
 }
 
 query_db_for_positions <- function(vcf_file, chrom_norm, pos_dt, temp_regions_file) {
+  aliases <- chrom_aliases(chrom_norm)
   contig_candidates <- unique(c(
-    chrom_norm,
-    paste0("chr", chrom_norm),
-    if (chrom_norm == "MT") c("M", "chrM") else character(0)
+    aliases,
+    paste0("chr", aliases),
+    if (any(aliases %in% c("MT", "M"))) c("M", "chrM") else character(0)
   ))
 
   for (contig in contig_candidates) {
@@ -135,11 +163,9 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
   chr_dir <- file.path(temp_dir, paste0("chr_", chr_norm))
   dir.create(chr_dir, recursive = TRUE, showWarnings = FALSE)
 
-  chunk_file <- file.path(chr_dir, "input_chunk.tsv.gz")
   pos_file <- file.path(chr_dir, "positions.tsv")
-  db_file <- file.path(chr_dir, "snpdb_subset.tsv.gz")
 
-  fwrite(dt_chr, chunk_file, sep = "\t")
+  log_msg("chr ", chr_norm, ": mapping started")
 
   pos_dt <- unique(dt_chr[, .(pos = as.integer(pos))])
   pos_dt <- pos_dt[!is.na(pos)]
@@ -147,6 +173,7 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
   if (nrow(pos_dt) == 0) {
     dt_chr[, mapped_rsid := NA_character_]
     dt_chr[, map_status := "no_pos"]
+    log_msg("chr ", chr_norm, ": mapping finished (no_pos)")
     return(dt_chr)
   }
 
@@ -154,6 +181,7 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
   if (is.na(vcf_file)) {
     dt_chr[, mapped_rsid := NA_character_]
     dt_chr[, map_status := "missing_snpdb_chr"]
+    log_msg("chr ", chr_norm, ": mapping finished (missing_snpdb_chr)")
     return(dt_chr)
   }
 
@@ -162,15 +190,15 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
   if (nrow(db) == 0) {
     dt_chr[, mapped_rsid := NA_character_]
     dt_chr[, map_status := "no_db_match_pos"]
+    log_msg("chr ", chr_norm, ": mapping finished (no_db_match_pos)")
     return(dt_chr)
   }
-
-  fwrite(db, db_file, sep = "\t")
 
   db <- db[!is.na(rsid) & rsid != "."]
   if (nrow(db) == 0) {
     dt_chr[, mapped_rsid := NA_character_]
     dt_chr[, map_status := "no_valid_rsid"]
+    log_msg("chr ", chr_norm, ": mapping finished (no_valid_rsid)")
     return(dt_chr)
   }
 
@@ -198,6 +226,7 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
   if (nrow(cands) == 0) {
     dt_chr[, `:=`(mapped_rsid = NA_character_, map_status = "no_allele_match")]
     dt_chr[, c("ea_u", "nea_u", "ea_c", "nea_c") := NULL]
+    log_msg("chr ", chr_norm, ": mapping finished (no_allele_match)")
     return(dt_chr)
   }
 
@@ -214,16 +243,19 @@ map_one_chrom <- function(chr_norm, dt_chr, snpdb_root, build_info, temp_dir) {
                           fifelse(map_rank == 3L, "strand_direct", "strand_swapped"))))]
 
   dt_chr[, c("ea_u", "nea_u", "ea_c", "nea_c", "map_rank") := NULL]
+  log_msg("chr ", chr_norm, ": mapping finished")
   dt_chr
 }
 
-cat(sprintf("\n============================================================\n"))
-cat(sprintf("SNPdb rsID mapping for dataset: %s\n", opt$dataset))
-cat(sprintf("============================================================\n"))
-cat(sprintf("Build: %s\n", opt$build))
-cat(sprintf("Input: %s\nOutput: %s\n", opt$input, opt$output))
-cat(sprintf("SNPdb root: %s\n", opt$snpdb_root))
-cat(sprintf("Temp dir: %s\nThreads: %d\n\n", opt$temp_dir, opt$threads))
+log_msg("============================================================")
+log_msg("SNPdb rsID mapping for dataset: ", opt$dataset)
+log_msg("============================================================")
+log_msg("Build: ", opt$build)
+log_msg("Input: ", opt$input)
+log_msg("Output: ", opt$output)
+log_msg("SNPdb root: ", opt$snpdb_root)
+log_msg("Temp dir: ", opt$temp_dir)
+log_msg("Threads: ", opt$threads)
 
 dt <- fread(opt$input, sep = "\t", showProgress = TRUE)
 
@@ -303,37 +335,33 @@ if (length(chroms) == 0) {
 
 build_info <- build_to_keys(opt$build)
 workers <- max(1L, min(as.integer(opt$threads), length(chroms)))
-unmapped_pos_limit <- max(0L, as.integer(opt$`unmapped-pos-limit`))
+unmapped_pos_limit <- max(0L, as.integer(opt$unmapped_pos_limit))
 
 chr_results <- mclapply(
   chroms,
-  function(chr_norm) {
-    chr_dt <- dt[chrom_norm == chr_norm]
-    map_one_chrom(chr_norm, chr_dt, opt$snpdb_root, build_info, opt$temp_dir)
+  function(chr_key) {
+    chr_dt <- dt[chrom_norm == chr_key]
+    map_one_chrom(chr_key, chr_dt, opt$snpdb_root, build_info, opt$temp_dir)
   },
   mc.cores = workers
 )
 
-mapped_dt <- rbindlist(chr_results, use.names = TRUE, fill = TRUE)
-setorder(mapped_dt, row_id)
-out <- mapped_dt
+out <- rbindlist(chr_results, use.names = TRUE, fill = TRUE)
+setorder(out, row_id)
 
-# Keep original alleles as requested; update snpid after all mapping passes.
 out[, snpid_orig := snpid]
 
-# Pass 2: rescue only currently-unmapped variants using multiallelic ALT splitting.
 pre_rescue_unmapped <- out[is.na(mapped_rsid) | mapped_rsid == ""]
-rescued_count <- 0L
 
 if (nrow(pre_rescue_unmapped) > 0) {
   rescue_chunks <- list()
   rescue_chr <- unique(pre_rescue_unmapped[!is.na(chrom_norm) & !is.na(pos), chrom_norm])
 
-  for (chr_norm in rescue_chr) {
-    chr_rows <- pre_rescue_unmapped[chrom_norm == chr_norm & !is.na(pos)]
+  for (chr_key in rescue_chr) {
+    chr_rows <- pre_rescue_unmapped[chrom_norm == chr_key & !is.na(pos)]
     if (nrow(chr_rows) == 0) next
 
-    vcf_file <- find_chr_vcf(opt$snpdb_root, build_info, chr_norm)
+    vcf_file <- find_chr_vcf(opt$snpdb_root, build_info, chr_key)
     if (is.na(vcf_file)) next
 
     pos_dt <- unique(chr_rows[, .(pos = as.integer(pos))])
@@ -341,8 +369,8 @@ if (nrow(pre_rescue_unmapped) > 0) {
     if (nrow(pos_dt) == 0) next
     pos_dt[, end := pos]
 
-    reg_file <- file.path(opt$temp_dir, sprintf("multiallelic_rescue_%s.tsv", chr_norm))
-    db <- query_db_for_positions(vcf_file, chr_norm, pos_dt, reg_file)
+    reg_file <- file.path(opt$temp_dir, sprintf("multiallelic_rescue_%s.tsv", chr_key))
+    db <- query_db_for_positions(vcf_file, chr_key, pos_dt, reg_file)
     if (nrow(db) == 0) next
 
     db <- db[!is.na(rsid) & rsid != ".", .(pos = as.integer(pos), rsid, ref = toupper(ref), alt = toupper(alt))]
@@ -395,12 +423,10 @@ if (nrow(pre_rescue_unmapped) > 0) {
                      fifelse(rescue_rank == 2L, "multiallelic_swapped",
                      fifelse(rescue_rank == 3L, "multiallelic_strand_direct", "multiallelic_strand_swapped")))]
 
-    rescued_count <- out[!is.na(mapped_rsid_rescue), .N]
     out[, c("mapped_rsid_rescue", "rescue_rank") := NULL]
   }
 }
 
-# Final mapped/unmapped after rescue
 out[, snpid_fallback := fifelse(
   !is.na(chrom) & !is.na(pos) & !is.na(nea) & !is.na(ea),
   paste0(as.character(chrom), ":", as.character(pos), ":", as.character(nea), ":", as.character(ea)),
@@ -414,6 +440,8 @@ out[, snpid := fifelse(
 )]
 out[, snpid_fallback := NULL]
 
+rescued_count <- out[grepl("^multiallelic_", map_status), .N]
+
 mapped_count <- out[!is.na(mapped_rsid) & mapped_rsid != "", .N]
 unmapped_dt <- out[is.na(mapped_rsid) | mapped_rsid == ""]
 unmapped_count <- nrow(unmapped_dt)
@@ -424,6 +452,7 @@ status_summary <- out[, .N, by = map_status][order(-N)]
 print(status_summary)
 
 # Limited fallback: for only a few unmapped variants, search by chr+pos in reference chr VCF.
+log_msg("Stage 3/4: limited unmapped chr+pos fallback started")
 lookup_n <- min(unmapped_pos_limit, unmapped_count)
 pos_lookup_dt <- data.table()
 
@@ -436,11 +465,11 @@ if (lookup_n > 0) {
   lookup_chunks <- list()
   chr_for_lookup <- unique(lookup_subset[!is.na(chrom_norm) & !is.na(pos), chrom_norm])
 
-  for (chr_norm in chr_for_lookup) {
-    chr_rows <- lookup_subset[chrom_norm == chr_norm & !is.na(pos)]
+  for (chr_key in chr_for_lookup) {
+    chr_rows <- lookup_subset[chrom_norm == chr_key & !is.na(pos)]
     if (nrow(chr_rows) == 0) next
 
-    vcf_file <- find_chr_vcf(opt$snpdb_root, build_info, chr_norm)
+    vcf_file <- find_chr_vcf(opt$snpdb_root, build_info, chr_key)
     if (is.na(vcf_file)) next
 
     pos_dt <- unique(chr_rows[, .(pos = as.integer(pos))])
@@ -448,8 +477,8 @@ if (lookup_n > 0) {
     if (nrow(pos_dt) == 0) next
     pos_dt[, end := pos]
 
-    reg_file <- file.path(opt$temp_dir, sprintf("unmapped_lookup_%s.tsv", chr_norm))
-    db <- query_db_for_positions(vcf_file, chr_norm, pos_dt, reg_file)
+    reg_file <- file.path(opt$temp_dir, sprintf("unmapped_lookup_%s.tsv", chr_key))
+    db <- query_db_for_positions(vcf_file, chr_key, pos_dt, reg_file)
     if (nrow(db) == 0) next
 
     db <- db[!is.na(rsid) & rsid != ".", .(pos = as.integer(pos), pos_only_rsid = rsid)]
@@ -484,6 +513,7 @@ if (lookup_n > 0) {
 } else {
   out[, pos_only_rsid := NA_character_]
 }
+log_msg("Stage 3/4 complete")
 
 unmapped_dt <- out[is.na(mapped_rsid) | mapped_rsid == ""]
 fwrite(unmapped_dt, unmapped_file, sep = "\t", na = "NA")
@@ -539,4 +569,4 @@ with(file(opt$done, "w"), {
 cat(sprintf("Unmapped list written: %s (%d variants)\n", unmapped_file, final_unmapped_count))
 cat(sprintf("Unmapped chr+pos lookup written: %s (%d candidate hits)\n", unmapped_pos_lookup_file, nrow(unmapped_with_pos_lookup)))
 
-cat("Done.\n")
+log_msg("Done.")

@@ -19,15 +19,30 @@
 
 
 # Step 0b: Map SNP IDs (rsID) from SNPdb - chromosome split + allele harmonization
-# Process all datasets in parallel (7 SLURM jobs)
+# Process all datasets with per-chromosome jobs.
+# Outputs are persistent under: results/snpdmapped/{dataset}/mapping/chr_{chrom}.mapped.tsv + .done
+# Re-run is resumable because completed chromosome .done files are skipped.
 bash ./scripts/submit_snpid_map.sh
 
 
 # Step 0b (alternative - all datasets via command line):
-# ./submit.sh --snakefile rules/00b_map_snpid.smk --cores 2 --jobs 7
+# ./submit.sh --snakefile rules/00b_map_snpid.smk --cores 1 --jobs 22
 
 # Step 0b (Asian only):
-# ./submit.sh --snakefile rules/00b_map_snpid.smk /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/snpdmapped/Asian.done
+# ./submit.sh --snakefile rules/00b_map_snpid.smk --cores 1 --jobs 22 /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/snpdmapped/Asian.done
+
+
+# Step 0c: API remap for SNPs still unmapped after Step 0b
+# Reads results/snpdmapped/{dataset}.tsv, finds fallback snpids (chr:pos:ea:nea), and remaps via API
+# Output: results/snpdmapped/{dataset}_mapped.tsv
+./scripts/submit_snpid_api_map.sh
+
+
+# Step 0c (alternative - all datasets via command line):
+# ./submit.sh --snakefile rules/00c_api_map_unmapped.smk --cores 1 --jobs 7
+
+# Step 0c (Asian only):
+# ./submit.sh --snakefile rules/00c_api_map_unmapped.smk --cores 1 /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/snpdmapped/Asian_mapped.done
 
 
 # Step 1: Calculate Missing Columns - Calculate SE from beta, eaf, n_cases, n_controls
