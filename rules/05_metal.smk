@@ -26,6 +26,7 @@ METAL_MODULE = get_software_module('metal')
 
 # Get METAL scheme
 SCHEME = METAL_CONFIG.get('scheme', 'STDERR')
+USE_EAF = METAL_CONFIG.get('use_eaf', True)
 
 # Rule targets
 rule all:
@@ -56,6 +57,7 @@ rule metal:
         input_dir = "results/04_metal_ready",
         output_dir = lambda wildcards: f"results/05_metal/{wildcards.combination}",
         scheme = SCHEME,
+        use_eaf = USE_EAF,
         metal_bin = METAL_BIN,
         metal_module = METAL_MODULE
     resources:
@@ -76,6 +78,7 @@ rule metal:
             --done {output.done} \
             --log {log} \
             --scheme {params.scheme} \
+            --use_eaf {params.use_eaf} \
             --metal_bin {params.metal_bin} \
         2>&1 | tee -a {log}
         """

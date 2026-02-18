@@ -193,6 +193,7 @@ datasets:
 # METAL configuration
 metal:
   scheme: "STDERR"  # Options: STDERR (beta/se required) or SAMPLESIZE
+  use_eaf: true  # If false, do not pass effect allele frequency (FREQ eaf) to METAL
   # genomiccontrol: "ON"  # Apply genomic control correction (leave commented for manual control)
   min_overlap: 2  # Minimum number of studies required per variant
   study_combinations:

@@ -14,6 +14,9 @@
 ./scripts/submit_standardize.sh
 
 
+
+
+
 # Step 0 (alternative - all datasets via command line):
 # ./submit.sh --snakefile rules/00_standardize.smk --cores 2 --jobs 7
 

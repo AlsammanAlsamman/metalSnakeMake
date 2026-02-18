@@ -66,7 +66,13 @@ cat("MarkerName format:", args$markername_format, "\n\n")
 
 # Read METAL output
 cat("Reading METAL output...\n")
-dt <- fread(args$input, header=TRUE, sep="\t", data.table=TRUE)
+dt <- fread(
+  args$input,
+  header=TRUE,
+  sep="\t",
+  data.table=TRUE,
+  colClasses=list(numeric="P-value")
+)
 cat("  Total variants:", nrow(dt), "\n")
 cat("  Input columns:", paste(names(dt), collapse=", "), "\n\n")
 
@@ -88,6 +94,19 @@ for (i in seq_along(metal_cols)) {
 }
 
 cat("  Standardized columns:", paste(names(dt), collapse=", "), "\n\n")
+
+# Ensure p-value is numeric (handles quoted/scientific values safely)
+if ("p" %in% names(dt)) {
+  if (!is.numeric(dt$p)) {
+    dt[, p := trimws(gsub('"', '', as.character(p), fixed=TRUE))]
+    dt[p %in% c("", "NA", "NaN", "Inf", "-Inf"), p := NA_character_]
+    dt[, p := suppressWarnings(as.numeric(p))]
+  }
+
+  n_missing_p <- dt[, sum(is.na(p))]
+  cat("  P-value column type:", class(dt$p)[1], "\n")
+  cat("  Missing/invalid p-values:", n_missing_p, "\n\n")
+}
 
 # Split MarkerName column
 cat("Splitting MarkerName column...\n")

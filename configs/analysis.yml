@@ -6,15 +6,58 @@ results_dir: "/s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results"
 
 # Target genome build - all datasets will be converted to this build
 target_build: "hg38"  # Options: hg19, hg38
-target_snp_list: "input/target_snp_list.txt"  # Reference SNP list for filtering and annotation
+target_snp_list: ""  # Reference SNP list for filtering and annotation
 markername_format: "chrom:pos:snpid"  # Format for METAL MarkerName column (options: chrom:pos:snpid, chrom:pos, snpid)
 datasets:
+  Hisp:
+    file: "input/Hisp.tsv"
+    build: "hg38"
+    n_cases: 3018
+    n_controls: 5501
+    study_type: "META"  # Meta-analysis result
+    columns:
+      snpid: "snpid"                      # SNP identifier
+      chrom: "chrom"                      # Chromosome
+      pos: "pos"                          # Position
+      ea: "ea"                            # Effect allele
+      nea: "nea"                          # Non-effect/other allele
+      eaf: "eaf"                          # Effect allele frequency
+      beta: "beta"                        # Beta coefficient
+      se: "se"                            # Standard error
+      p: "p"                              # P-value
+      direction: "direction"              # Direction of effects
+      het_i2: "het_isq"                   # Heterogeneity I² statistic
+      het_chisq: "het_chisq"              # Heterogeneity chi-square
+      het_df: "het_df"                    # Heterogeneity degrees of freedom
+      het_pval: "het_pval"                # Heterogeneity p-value
+      markername: "markername"            # MarkerName
+  EUR:
+    file: "input/EURstdrCleanBJ_with_freq.tsv"
+    build: "hg19"
+    n_cases: 4036
+    n_controls: 6959
+    study_type: "GWAS"  # Or META if this is meta-analysis result
+    columns:
+      snpid: "MarkerName:3"                 # SNP identifier
+      variant_id: "variant_id"            # Variant ID (chrom:pos format)
+      chrom: "chr"                        # Chromosome
+      pos: "pos"                          # Position
+      ea: "Allele1"                       # Effect allele
+      nea: "Allele2"                      # Non-effect/other allele
+      eaf: "Allele1_Freq"                 # Effect allele frequency
+      beta: "Effect"                      # Beta coefficient
+      se: "StdErr"                        # Standard error
+      p: "P-value"                        # P-value
+      het_i2: "HetISq"                    # Heterogeneity I² statistic
+      het_pval: "HetPVal"                 # Heterogeneity p-value
+      direction: "Direction"              # Direction of effects
   Asian:
-    file: "input/Asian.tsv"
+    file: "input/Asian_mapped.tsv"
     build: "hg19"
     reference_panel: "EAS"  # Reference panel for allele frequency and LD (from software.yml)
     study_type: "GWAS"
     columns:
+      snpid: "snpid"                 # SNP identifier (using MarkerName as proxy for rsID)
       variant_id: "MarkerName"                 # SNP identifier (using MarkerName as proxy for rsID)
       chrom: "chrom"                        # Chromosome
       pos: "pos"                          # Position
@@ -24,20 +67,18 @@ datasets:
       se: "se"                        # Standard error
       p: "p"                        # P-value
       n: "n"                # Total sample size
-      n_cases: "79801"                      # Number of cases (not provided, set to NA)
-      n_controls: "79802"                   # Number of controls (not provided, set to NA
+      n_cases: "14703"                      # Number of cases (not provided, set to NA)
+      n_controls: "144900"                   # Number of controls (not provided, set to NA
       n_sample_size: "159603"                    # Sample size per variant (not provided, set to NA)
 
 # METAL configuration
 metal:
   scheme: "STDERR"  # Options: STDERR (beta/se required) or SAMPLESIZE
+  use_eaf: false  # If false, do not pass effect allele frequency (FREQ eaf) to METAL
   # genomiccontrol: "ON"  # Apply genomic control correction (leave commented for manual control)
   min_overlap: 2  # Minimum number of studies required per variant
   study_combinations:
-#    hisp_mvp: ["MEX", "MEX123", "LAMR", "CLM", "MVP"]
-    # hisp: ["MEX", "MEX123", "LAMR", "CLM"]
-#    hisp_mvp_metas: ["Hisp", "MVP"]
-    Asian_EUR: ["Asian", "EUR"]
+    Asian_EUR_Hisp: ["Asian", "EUR", "Hisp"]
   
 # Quality control thresholds
 qc:

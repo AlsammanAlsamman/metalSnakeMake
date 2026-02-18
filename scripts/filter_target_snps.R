@@ -42,37 +42,46 @@ if (opt$snp_list != "" && file.exists(opt$snp_list)) {
   
   # Read SNP list (no header, one column)
   target_snps <- fread(opt$snp_list, header=FALSE, col.names="snpid")
+  target_snps[, snpid := trimws(as.character(snpid))]
+  target_snps <- target_snps[!is.na(snpid) & snpid != ""]
   
   cat("  Loaded", nrow(target_snps), "target SNPs\n")
+
+  # Empty SNP list means no filtering
+  if (nrow(target_snps) == 0) {
+    cat("\nTarget SNP list is empty.\n")
+    cat("Copying all variants unchanged.\n")
+  } else {
   
-  # Check if snpid column exists
-  if (!"snpid" %in% colnames(dt)) {
-    stop("ERROR: 'snpid' column not found in input file. Required for filtering.")
+    # Check if snpid column exists
+    if (!"snpid" %in% colnames(dt)) {
+      stop("ERROR: 'snpid' column not found in input file. Required for filtering.")
+    }
+  
+    # Filter to target SNPs
+    cat("\nFiltering to target SNPs...\n")
+    dt_filtered <- dt[snpid %in% target_snps$snpid]
+  
+    n_kept <- nrow(dt_filtered)
+    n_removed <- initial_count - n_kept
+  
+    cat("  Variants before filtering:", initial_count, "\n")
+    cat("  Variants after filtering:", n_kept, "\n")
+    cat("  Variants removed:", n_removed, "\n")
+    cat("  Retention rate:", round(100 * n_kept / initial_count, 2), "%\n")
+  
+    # Check for SNPs in target list not found in data
+    matched_snps <- sum(target_snps$snpid %in% dt$snpid)
+    unmatched_snps <- nrow(target_snps) - matched_snps
+  
+    cat("\n  Target SNPs found in data:", matched_snps, "/", nrow(target_snps), "\n")
+    if (unmatched_snps > 0) {
+      cat("  Target SNPs NOT found in data:", unmatched_snps, "\n")
+    }
+  
+    dt <- dt_filtered
+    filtering_applied <- TRUE
   }
-  
-  # Filter to target SNPs
-  cat("\nFiltering to target SNPs...\n")
-  dt_filtered <- dt[snpid %in% target_snps$snpid]
-  
-  n_kept <- nrow(dt_filtered)
-  n_removed <- initial_count - n_kept
-  
-  cat("  Variants before filtering:", initial_count, "\n")
-  cat("  Variants after filtering:", n_kept, "\n")
-  cat("  Variants removed:", n_removed, "\n")
-  cat("  Retention rate:", round(100 * n_kept / initial_count, 2), "%\n")
-  
-  # Check for SNPs in target list not found in data
-  matched_snps <- sum(target_snps$snpid %in% dt$snpid)
-  unmatched_snps <- nrow(target_snps) - matched_snps
-  
-  cat("\n  Target SNPs found in data:", matched_snps, "/", nrow(target_snps), "\n")
-  if (unmatched_snps > 0) {
-    cat("  Target SNPs NOT found in data:", unmatched_snps, "\n")
-  }
-  
-  dt <- dt_filtered
-  filtering_applied <- TRUE
   
 } else {
   if (opt$snp_list != "" && !file.exists(opt$snp_list)) {

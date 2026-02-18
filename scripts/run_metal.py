@@ -11,12 +11,31 @@ import subprocess
 from pathlib import Path
 
 
+def parse_bool(value):
+    """
+    Parse common boolean string/int representations.
+    """
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+
+    value_str = str(value).strip().lower()
+    if value_str in {'1', 'true', 't', 'yes', 'y', 'on'}:
+        return True
+    if value_str in {'0', 'false', 'f', 'no', 'n', 'off'}:
+        return False
+
+    raise ValueError(f"Invalid boolean value: {value}")
+
+
 def create_metal_config(
     combination_name,
     datasets,
     input_dir,
     output_dir,
     scheme,
+    use_eaf,
     log_file
 ):
     """
@@ -28,6 +47,7 @@ def create_metal_config(
         input_dir: Directory containing input TSV files
         output_dir: Directory for METAL output
         scheme: METAL scheme (STDERR or SAMPLESIZE)
+        use_eaf: Whether to include FREQ eaf in METAL config
         log_file: Path to log file
     
     Returns:
@@ -41,6 +61,7 @@ def create_metal_config(
     print(f"Configuration file: {config_file}")
     print(f"Study combination: {combination_name}")
     print(f"Datasets ({len(datasets)}): {', '.join(datasets)}\n")
+    print(f"Use effect allele frequency (FREQ eaf): {use_eaf}\n")
     
     with open(config_file, 'w') as f:
         # Write header
@@ -64,7 +85,8 @@ def create_metal_config(
             f.write(f"# Process {dataset} dataset\n")
             f.write(f"MARKER   markername\n")
             f.write(f"ALLELE   nea ea\n")
-            f.write(f"FREQ     eaf\n")
+            if use_eaf:
+                f.write(f"FREQ     eaf\n")
             f.write(f"EFFECT   beta\n")
             f.write(f"STDERR   se\n")
             f.write(f"PVAL     p\n")
@@ -154,6 +176,8 @@ def main():
                         help='Log file path')
     parser.add_argument('--scheme', default='STDERR',
                         help='METAL scheme (STDERR or SAMPLESIZE)')
+    parser.add_argument('--use_eaf', default='True',
+                        help='Whether to include FREQ eaf in METAL config (true/false)')
     parser.add_argument('--metal_bin', required=True,
                         help='Path to METAL binary')
     
@@ -170,6 +194,7 @@ def main():
         f.write(f"Combination: {args.combination}\n")
         f.write(f"Datasets: {', '.join(args.datasets)}\n")
         f.write(f"Scheme: {args.scheme}\n")
+        f.write(f"Use EAF: {args.use_eaf}\n")
         f.write(f"Input directory: {args.input_dir}\n")
         f.write(f"Output directory: {args.output_dir}\n\n")
     
@@ -181,6 +206,7 @@ def main():
             input_dir=args.input_dir,
             output_dir=args.output_dir,
             scheme=args.scheme,
+            use_eaf=parse_bool(args.use_eaf),
             log_file=args.log
         )
         

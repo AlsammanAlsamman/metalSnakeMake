@@ -56,6 +56,11 @@ rule filter_target_snps:
         set +u
         module load {params.r_module}
         set -u
+
+        SNP_LIST_ARG=""
+        if [[ -n "{params.snp_list}" ]]; then
+            SNP_LIST_ARG="--snp_list {params.snp_list}"
+        fi
         
         Rscript scripts/filter_target_snps.R \
             --dataset {params.dataset} \
@@ -63,6 +68,6 @@ rule filter_target_snps:
             --output {output.tsv} \
             --done {output.done} \
             --log {log} \
-            --snp_list {params.snp_list} \
+            $SNP_LIST_ARG \
             2>&1 | tee {log}
         """
