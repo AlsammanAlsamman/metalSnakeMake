@@ -70,7 +70,42 @@ datasets:
       n_cases: "14703"                      # Number of cases (not provided, set to NA)
       n_controls: "144900"                   # Number of controls (not provided, set to NA
       n_sample_size: "159603"                    # Sample size per variant (not provided, set to NA)
-
+  TWN:
+    file: "input/TWN.txt"
+    build: "hg38"
+    n_cases: 5184
+    n_controls: 311848
+    study_type: "GWAS"
+    columns:
+      chrom: "CHR"
+      pos: "POS"
+      ea: "Allele2"
+      nea: "Allele1"
+      eaf: "AF_Allele2"
+      beta: "BETA"
+      se: "SE"
+      p: "p.value"
+      info: "imputationInfo"
+  MVP:
+    file: "input/MVP.tsv"
+    build: "hg38"
+    n_cases: 1965
+    n_controls: 630574
+    study_type: "GWAS"  # Or META if this is meta-analysis result
+    columns:
+      snpid: "rsid"                       # SNP identifier
+      chrom: "chromosome"                 # Chromosome
+      pos: "base_pair_location"           # Position
+      ea: "effect_allele"                 # Effect allele
+      nea: "other_allele"                 # Non-effect/other allele
+      eaf: "effect_allele_frequency"      # Effect allele frequency
+      or: "odds_ratio"                    # Odds ratio (only OR available, no BETA directly)
+      se: "standard_error"                # SE of log(OR)
+      p: "p_value"                        # P-value
+      n: "n"                              # Total sample size
+      het_i2: "i2"                        # Heterogeneity I² statistic
+      het_pval: "q_pval"                  # Heterogeneity p-value
+# 3018 + 5501 + 4036 + 6959 + 14703 + 144900
 # METAL configuration
 metal:
   scheme: "STDERR"  # Options: STDERR (beta/se required) or SAMPLESIZE
@@ -78,7 +113,7 @@ metal:
   # genomiccontrol: "ON"  # Apply genomic control correction (leave commented for manual control)
   min_overlap: 2  # Minimum number of studies required per variant
   study_combinations:
-    Asian_EUR_Hisp: ["Asian", "EUR", "Hisp"]
+    Asian_EUR_Hisp: ["Asian", "EUR", "Hisp","TWN", "MVP"]  # Combine all studies for main meta-analysis
   
 # Quality control thresholds
 qc:

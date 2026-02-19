@@ -16,6 +16,7 @@ option_list <- list(
   make_option(c("--output_excel"), type="character", help="Output Excel file"),
   make_option(c("--excel_pval"), type="numeric", help="P-value threshold for Excel output"),
   make_option(c("--combination"), type="character", help="Combination name"),
+  make_option(c("--studies"), type="character", default="", help="Comma-separated list of studies used in meta-analysis"),
   make_option(c("--log"), type="character", help="Log file path")
 )
 
@@ -32,6 +33,7 @@ cat("ANNOVAR file:", opt$annovar, "\n")
 cat("Output TSV:", opt$output, "\n")
 cat("Output Excel:", opt$output_excel, "\n")
 cat("Excel p-value threshold:", opt$excel_pval, "\n\n")
+cat("Studies:", opt$studies, "\n\n")
 
 # Read enriched meta-analysis file
 cat("Reading enriched meta-analysis file...\n")
@@ -80,6 +82,74 @@ n_without_annotation <- sum(is.na(annotated_dt$Func.refGene))
 
 cat("SNPs with ANNOVAR annotation:", n_with_annotation, "\n")
 cat("SNPs without ANNOVAR annotation:", n_without_annotation, "\n\n")
+
+# Add meta-level OR if missing (OR = exp(beta))
+if (!"or" %in% names(annotated_dt) && "beta" %in% names(annotated_dt)) {
+  cat("Adding meta OR from beta (or = exp(beta))...\n")
+  annotated_dt[, or := suppressWarnings(exp(as.numeric(beta)))]
+} else if ("or" %in% names(annotated_dt) && "beta" %in% names(annotated_dt)) {
+  cat("Filling missing meta OR values from beta...\n")
+  annotated_dt[is.na(or) & !is.na(beta), or := suppressWarnings(exp(as.numeric(beta)))]
+}
+
+# Merge individual study-level data used in meta-analysis
+study_names <- trimws(unlist(strsplit(opt$studies, ",", fixed=TRUE)))
+study_names <- study_names[nchar(study_names) > 0]
+
+if (length(study_names) > 0) {
+  cat("Merging individual study data for:", paste(study_names, collapse=", "), "\n")
+
+  for (study in study_names) {
+    study_file <- file.path("results", "04_metal_ready", paste0(study, ".tsv"))
+
+    if (!file.exists(study_file)) {
+      cat("  WARNING: Study file not found:", study_file, "\n")
+      next
+    }
+
+    cat("  Reading", study, "from", study_file, "...\n")
+    study_dt <- fread(study_file, sep="\t", header=TRUE, stringsAsFactors=FALSE)
+
+    # Ensure markername exists for joining
+    if (!"markername" %in% names(study_dt)) {
+      if (all(c("chrom", "pos", "snpid") %in% names(study_dt))) {
+        study_dt[, markername := paste(chrom, pos, snpid, sep=":")]
+      } else {
+        cat("  WARNING: Cannot create markername for", study, "(missing markername/chrom+pos+snpid), skipping\n")
+        next
+      }
+    }
+
+    # Add study OR if missing
+    if (!"or" %in% names(study_dt) && "beta" %in% names(study_dt)) {
+      study_dt[, or := suppressWarnings(exp(as.numeric(beta)))]
+    } else if ("or" %in% names(study_dt) && "beta" %in% names(study_dt)) {
+      study_dt[is.na(or) & !is.na(beta), or := suppressWarnings(exp(as.numeric(beta)))]
+    }
+
+    # Keep key study columns only
+    keep_cols <- intersect(c("markername", "beta", "se", "p", "eaf", "or"), names(study_dt))
+    if (!"markername" %in% keep_cols) {
+      cat("  WARNING: markername still missing in", study, "after processing, skipping\n")
+      next
+    }
+    study_subset <- study_dt[, ..keep_cols]
+
+    # Prefix study columns
+    rename_cols <- setdiff(names(study_subset), "markername")
+    if (length(rename_cols) > 0) {
+      setnames(study_subset, rename_cols, paste0(study, "_", rename_cols))
+    }
+
+    # Merge into annotated table
+    n_before <- ncol(annotated_dt)
+    annotated_dt <- merge(annotated_dt, study_subset, by="markername", all.x=TRUE)
+    n_added <- ncol(annotated_dt) - n_before
+    cat("  Added", n_added, "columns for", study, "\n")
+  }
+
+  cat("Individual study data merge complete.\n\n")
+}
 
 # Write full TSV output
 cat("Writing TSV output...\n")

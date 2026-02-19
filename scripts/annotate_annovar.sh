@@ -16,6 +16,7 @@ while [[ $# -gt 0 ]]; do
         --output) OUTPUT="$2"; shift 2 ;;
         --output_excel) OUTPUT_EXCEL="$2"; shift 2 ;;
         --combination) COMBINATION="$2"; shift 2 ;;
+        --studies) STUDIES="$2"; shift 2 ;;
         --buildver) BUILDVER="$2"; shift 2 ;;
         --humandb) HUMANDB="$2"; shift 2 ;;
         --protocols) PROTOCOLS="$2"; shift 2 ;;
@@ -41,6 +42,7 @@ log() {
 
 log "=== ANNOVAR Annotation Pipeline ==="
 log "Combination: $COMBINATION"
+log "Studies: $STUDIES"
 log "Input: $INPUT"
 log "Build version: $BUILDVER"
 log "Protocols: $PROTOCOLS"
@@ -141,6 +143,7 @@ Rscript scripts/merge_annovar.R \
     --output_excel "$OUTPUT_EXCEL" \
     --excel_pval "$EXCEL_PVAL" \
     --combination "$COMBINATION" \
+    --studies "$STUDIES" \
     --log "$LOG"
 
 # Step 4: Create Excel file from annotated TSV (separate process to avoid sink issues)

@@ -1,4 +1,22 @@
 #!/bin/bash
+
+# ./submit.sh --snakefile rules/00_standardize.smk --cores 2 --jobs 7
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###############################
 # METAL Meta-Analysis Pipeline Execution Steps
 # Each step can be run independently - previous steps must complete successfully (check .done files)
 

@@ -46,13 +46,13 @@ rule annovar_annotate:
     Annotate meta-analysis results with ANNOVAR gene-based annotations.
     - Convert to ANNOVAR input format (chr, start, end, ref, alt)
     - Run ANNOVAR table_annovar.pl with refGene protocol
-    - Merge annotations back to enriched file
+    - Merge annotations back to standardized meta-analysis file
     - Generate TSV with all SNPs + annotations
     - Generate Excel with SNPs p < 5e-3
     """
     input:
-        meta = "results/07_enriched/{combination}/{combination}_enriched.tsv",
-        done = "results/07_enriched/{combination}/{combination}.done"
+        meta = "results/06_metal_standardized/{combination}/{combination}_standardized.tsv",
+        done = "results/06_metal_standardized/{combination}/{combination}.done"
     output:
         tsv = "results/09_annovar_annotated/{combination}/{combination}_annotated.tsv",
         excel = "results/09_annovar_annotated/{combination}/{combination}_annotated.xlsx",
@@ -61,6 +61,7 @@ rule annovar_annotate:
         "results/log/09_annovar_annotate/{combination}.log"
     params:
         combination = "{combination}",
+        studies = lambda wildcards: ",".join(COMBINATIONS[wildcards.combination]),
         annovar_module = ANNOVAR_MODULE,
         r_module = R_MODULE,
         buildver = TARGET_BUILD,
@@ -89,6 +90,7 @@ rule annovar_annotate:
             --output {output.tsv} \
             --output_excel {output.excel} \
             --combination {params.combination} \
+            --studies "{params.studies}" \
             --buildver {params.buildver} \
             --humandb {params.humandb} \
             --protocols {params.protocols} \
