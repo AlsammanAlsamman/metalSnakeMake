@@ -20,7 +20,8 @@ option_list <- list(
   make_option("--done", type = "character"),
   make_option("--log", type = "character"),
   make_option("--snpdb-root", type = "character", default = "resources/SNPdb"),
-  make_option("--mapping-dir", type = "character", default = "results/snpdmapped")
+  make_option("--mapping-dir", type = "character", default = "results/snpdmapped"),
+  make_option("--bcftools", type = "character", default = "bcftools")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -38,7 +39,7 @@ get_opt <- function(opts, keys) {
 opt$snpdb_root <- get_opt(opt, c("snpdb_root", "snpdb-root", "snpdb.root"))
 opt$mapping_dir <- get_opt(opt, c("mapping_dir", "mapping-dir", "mapping.dir"))
 
-required <- c("dataset", "chrom", "build", "input", "output", "done", "log", "snpdb_root", "mapping_dir")
+required <- c("dataset", "chrom", "build", "input", "output", "done", "log", "snpdb_root", "mapping_dir", "bcftools")
 missing_required <- required[sapply(required, function(k) is.null(opt[[k]]) || !nzchar(opt[[k]]))]
 if (length(missing_required) > 0) {
   stop(sprintf("Missing required arguments: %s", paste(missing_required, collapse = ", ")))
@@ -103,7 +104,56 @@ find_chr_vcf <- function(snpdb_root, build_info, chrom_norm) {
   hits[[1]]
 }
 
-query_db_for_positions <- function(vcf_file, chrom_norm, pos_dt, regions_file) {
+query_db_for_positions <- function(vcf_file, chrom_norm, pos_dt, regions_file, bcftools_cmd) {
+  if (!exists(".vcf_fallback_cache", envir = .GlobalEnv, inherits = FALSE)) {
+    assign(".vcf_fallback_cache", new.env(parent = emptyenv()), envir = .GlobalEnv)
+  }
+  fallback_cache <- get(".vcf_fallback_cache", envir = .GlobalEnv, inherits = FALSE)
+
+  bcftools_ok <- FALSE
+  if (!is.null(bcftools_cmd) && nzchar(bcftools_cmd)) {
+    bcftools_ok <- suppressWarnings(tryCatch(system2(bcftools_cmd, "--version", stdout = FALSE, stderr = FALSE) == 0, error = function(e) FALSE))
+  }
+
+  if (!bcftools_ok) {
+    key <- gsub("[^A-Za-z0-9]", "_", normalizePath(vcf_file, winslash = "/", mustWork = FALSE))
+    if (!exists(key, envir = fallback_cache, inherits = FALSE)) {
+      log_msg("bcftools unavailable; using fallback full-scan for ", basename(vcf_file))
+      pos_file <- tempfile(pattern = "snpdb_pos_", fileext = ".txt")
+      out_file <- tempfile(pattern = "snpdb_scan_", fileext = ".tsv")
+      on.exit(unlink(c(pos_file, out_file), force = TRUE), add = TRUE)
+
+      fwrite(unique(pos_dt[, .(pos)]), pos_file, sep = "\t", col.names = FALSE)
+      awk_script <- "BEGIN{FS=OFS=\"\\t\"} NR==FNR{p[$1]=1;next} /^#/{next} (($2+0) in p){print $1,$2,$3,$4,$5}"
+      cmd <- sprintf("gzip -dc %s | awk '%s' %s - > %s", shQuote(vcf_file), awk_script, shQuote(pos_file), shQuote(out_file))
+      status <- suppressWarnings(system(cmd, intern = FALSE, ignore.stdout = TRUE, ignore.stderr = FALSE))
+      if (!is.numeric(status) || status != 0 || !file.exists(out_file) || file.info(out_file)$size == 0) {
+        empty <- data.table(db_chrom = character(), pos = integer(), rsid = character(), ref = character(), alt = character())
+        assign(key, empty, envir = fallback_cache)
+      } else {
+        db_all <- fread(out_file, sep = "\t", header = FALSE, showProgress = FALSE)
+        if (nrow(db_all) == 0) {
+          db_all <- data.table(db_chrom = character(), pos = integer(), rsid = character(), ref = character(), alt = character())
+        } else {
+          setnames(db_all, c("db_chrom", "pos", "rsid", "ref", "alt"))
+          db_all[, pos := as.integer(pos)]
+        }
+        assign(key, db_all, envir = fallback_cache)
+      }
+    }
+
+    db_cached <- get(key, envir = fallback_cache, inherits = FALSE)
+    if (nrow(db_cached) == 0) {
+      return(data.table(db_chrom = character(), pos = integer(), rsid = character(), ref = character(), alt = character()))
+    }
+    lookup_pos <- unique(as.integer(pos_dt$pos))
+    lookup_pos <- lookup_pos[!is.na(lookup_pos)]
+    if (length(lookup_pos) == 0) {
+      return(data.table(db_chrom = character(), pos = integer(), rsid = character(), ref = character(), alt = character()))
+    }
+    return(db_cached[pos %in% lookup_pos])
+  }
+
   aliases <- chrom_aliases(chrom_norm)
   contig_candidates <- unique(c(aliases, paste0("chr", aliases), if (any(aliases %in% c("MT", "M"))) c("M", "chrM") else character(0)))
 
@@ -113,7 +163,7 @@ query_db_for_positions <- function(vcf_file, chrom_norm, pos_dt, regions_file) {
     setcolorder(reg, c("chrom", "pos", "end"))
     fwrite(reg, regions_file, sep = "\t", col.names = FALSE)
 
-    cmd <- sprintf("bcftools query -R %s -f '%%CHROM\\t%%POS\\t%%ID\\t%%REF\\t%%ALT\\n' %s", shQuote(regions_file), shQuote(vcf_file))
+    cmd <- sprintf("%s query -R %s -f '%%CHROM\\t%%POS\\t%%ID\\t%%REF\\t%%ALT\\n' %s", shQuote(bcftools_cmd), shQuote(regions_file), shQuote(vcf_file))
     db <- tryCatch(fread(cmd = cmd, sep = "\t", header = FALSE, showProgress = FALSE), error = function(e) data.table())
     if (nrow(db) > 0) {
       setnames(db, c("db_chrom", "pos", "rsid", "ref", "alt"))
@@ -123,7 +173,7 @@ query_db_for_positions <- function(vcf_file, chrom_norm, pos_dt, regions_file) {
   data.table(db_chrom = character(), pos = integer(), rsid = character(), ref = character(), alt = character())
 }
 
-run_multiallelic_rescue <- function(dt_chr, chrom_norm, vcf_file, mapping_dir) {
+run_multiallelic_rescue <- function(dt_chr, chrom_norm, vcf_file, mapping_dir, bcftools_cmd) {
   unmapped <- dt_chr[is.na(mapped_rsid) | mapped_rsid == ""]
   if (nrow(unmapped) == 0) return(dt_chr)
 
@@ -133,7 +183,7 @@ run_multiallelic_rescue <- function(dt_chr, chrom_norm, vcf_file, mapping_dir) {
   pos_dt[, end := pos]
 
   reg_file <- file.path(mapping_dir, sprintf("chr_%s_multiallelic_rescue_regions.tsv", chrom_norm))
-  db <- query_db_for_positions(vcf_file, chrom_norm, pos_dt, reg_file)
+  db <- query_db_for_positions(vcf_file, chrom_norm, pos_dt, reg_file, bcftools_cmd)
   if (nrow(db) == 0) return(dt_chr)
 
   db <- db[!is.na(rsid) & rsid != ".", .(pos = as.integer(pos), rsid, ref = toupper(ref), alt = toupper(alt))]
@@ -217,7 +267,7 @@ if (dt_chr[!is.na(snpid) & trimws(as.character(snpid)) != "", .N] == nrow(dt_chr
     dt_chr[, `:=`(mapped_rsid = NA_character_, map_status = "no_pos", pos_only_rsid = NA_character_)]
   } else {
     reg_file <- file.path(opt$mapping_dir, sprintf("chr_%s_regions.tsv", chr_target))
-    db <- query_db_for_positions(vcf_file, chr_target, pos_dt, reg_file)
+    db <- query_db_for_positions(vcf_file, chr_target, pos_dt, reg_file, opt$bcftools)
 
     if (nrow(db) == 0) {
       dt_chr[, `:=`(mapped_rsid = NA_character_, map_status = "no_db_match_pos", pos_only_rsid = NA_character_)]
@@ -254,7 +304,7 @@ if (dt_chr[!is.na(snpid) & trimws(as.character(snpid)) != "", .N] == nrow(dt_chr
           dt_chr[, map_rank := NULL]
         }
 
-        dt_chr <- run_multiallelic_rescue(dt_chr, chr_target, vcf_file, opt$mapping_dir)
+        dt_chr <- run_multiallelic_rescue(dt_chr, chr_target, vcf_file, opt$mapping_dir, opt$bcftools)
         dt_chr[, pos_only_rsid := NA_character_]
 
         unmapped <- dt_chr[is.na(mapped_rsid) | mapped_rsid == ""]
@@ -264,7 +314,7 @@ if (dt_chr[!is.na(snpid) & trimws(as.character(snpid)) != "", .N] == nrow(dt_chr
           if (nrow(pos_lookup) > 0) {
             pos_lookup[, end := pos]
             lookup_reg <- file.path(opt$mapping_dir, sprintf("chr_%s_unmapped_lookup_regions.tsv", chr_target))
-            db_lookup <- query_db_for_positions(vcf_file, chr_target, pos_lookup, lookup_reg)
+            db_lookup <- query_db_for_positions(vcf_file, chr_target, pos_lookup, lookup_reg, opt$bcftools)
             if (nrow(db_lookup) > 0) {
               db_lookup <- db_lookup[!is.na(rsid) & rsid != ".", .(pos = as.integer(pos), pos_only_rsid = rsid)]
               if (nrow(db_lookup) > 0) {

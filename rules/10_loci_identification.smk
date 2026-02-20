@@ -52,12 +52,14 @@ rule loci_identification:
         ref_bfile = lambda wildcards: reference_panels.get(
             loci_config.get(wildcards.combination, {}).get("reference_panel", ""), {}
         ).get("bfile", ""),
+        target_build = get_analysis_value(['target_build'], default='hg38'),
         leadP = lambda wildcards: loci_config.get(wildcards.combination, {}).get("leadP", 5e-8),
         gwasP = lambda wildcards: loci_config.get(wildcards.combination, {}).get("gwasP", 1e-5),
         r2 = lambda wildcards: loci_config.get(wildcards.combination, {}).get("r2", 0.6),
         r2_2 = lambda wildcards: loci_config.get(wildcards.combination, {}).get("r2_2", 0.1),
         mergeDist = lambda wildcards: loci_config.get(wildcards.combination, {}).get("mergeDist", 250),
         maf = lambda wildcards: loci_config.get(wildcards.combination, {}).get("maf", 0.01),
+        panel_match_p_threshold = lambda wildcards: loci_config.get(wildcards.combination, {}).get("panel_match_p_threshold", 5e-3),
         windowKb = lambda wildcards: loci_config.get(wildcards.combination, {}).get("windowKb", 500),
         threads = lambda wildcards: loci_config.get(wildcards.combination, {}).get("threads", 8),
         refSNPs = lambda wildcards: loci_config.get(wildcards.combination, {}).get("refSNPs", 1),
@@ -85,6 +87,7 @@ rule loci_identification:
             --meta {input.meta} \
             --ref-bfile {params.ref_bfile} \
             --ref-name {params.ref_panel} \
+            --target-build {params.target_build} \
             --combination {wildcards.combination} \
             --temp-dir {params.temp_dir} \
             --outdir {params.outdir} \
@@ -94,6 +97,7 @@ rule loci_identification:
             --r2-2 {params.r2_2} \
             --mergeDist {params.mergeDist} \
             --maf {params.maf} \
+            --panel-match-p-threshold {params.panel_match_p_threshold} \
             --windowKb {params.windowKb} \
             --threads {params.threads} \
             --refSNPs {params.refSNPs} \

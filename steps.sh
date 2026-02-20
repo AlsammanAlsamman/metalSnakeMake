@@ -1,19 +1,20 @@
 #!/bin/bash
 
-# ./submit.sh --snakefile rules/00_standardize.smk --cores 2 --jobs 7
+# Standarizing
+./submit.sh --snakefile rules/00_standardize.smk --cores 2 --jobs 7
+./submit.sh --snakefile rules/01_calculate_missing.smk --cores 2 --jobs 7
+./submit.sh --snakefile rules/02_filter_snps.smk --cores 1 --jobs 7
+./submit.sh --snakefile rules/03_liftover.smk --cores 1 --jobs 7
+
+./submit.sh --snakefile rules/04_prepare_metal.smk --cores 1 --jobs 7
+./submit.sh --snakefile rules/11_shared_or_correlation.smk --cores 1 --jobs 10
+./submit.sh --snakefile rules/05_metal.smk --cores 1 --jobs 10
+./submit.sh --snakefile rules/06_standardize_metal.smk --cores 1 --jobs 10
+./submit.sh --snakefile rules/09_annovar_annotate.smk --cores 1 --jobs 10
 
 
 
-
-
-
-
-
-
-
-
-
-
+./submit.sh --snakefile rules/00b_map_snpid.smk --cores 1 --jobs 22 /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/snpdmapped/TWN.done
 
 
 ###############################
@@ -156,3 +157,10 @@ bash ./scripts/submit_snpid_map.sh
 
 # Step 10 (dry run to check configuration):
 # ./submit.sh --snakefile rules/10_loci_identification.smk --cores 8 --jobs 10 --dry-run
+
+
+# Step 11: Shared SNP OR Correlation - harmonize alleles/beta and assess OR concordance
+./submit.sh --snakefile rules/11_shared_or_correlation.smk --cores 1 --jobs 10
+
+# Step 11 (single combination test):
+# ./submit.sh --snakefile rules/11_shared_or_correlation.smk /s/nath-lab/alsamman/____MyCodes____/metalSnakeMake/results/11_shared_or/Asian_EUR_Hisp/Asian_EUR_Hisp.done

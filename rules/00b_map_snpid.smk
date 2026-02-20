@@ -5,6 +5,8 @@ Maps variants from standardized datasets to rsIDs using chr+pos and allele harmo
 """
 
 import sys
+import os
+import yaml
 sys.path.append("utils")
 
 from bioconfigme import (
@@ -18,6 +20,15 @@ RESULTS_DIR = get_results_dir()
 DATASETS = get_dataset_list()
 R_MODULE = get_software_module('r')
 BCFTOOLS_MODULE = get_software_module('bcftools', required=False, default='')
+
+BCFTOOLS_PATH = ""
+try:
+    with open('configs/software.yml', 'r') as f:
+        software_cfg = yaml.safe_load(f) or {}
+        BCFTOOLS_PATH = (software_cfg.get('bcftools', {}) or {}).get('path', '') or ''
+except Exception:
+    BCFTOOLS_PATH = ""
+
 CHR_ORDER = [str(i) for i in range(1, 24)] + ["X", "Y"]
 
 rule all:
@@ -44,11 +55,12 @@ rule map_snpid_from_snpdb_chr:
         snpdb_root = "resources/SNPdb",
         mapping_dir = f"{RESULTS_DIR}/snpdmapped/{{dataset}}/mapping",
         r_module = R_MODULE,
-        bcftools_module = BCFTOOLS_MODULE
+        bcftools_module = BCFTOOLS_MODULE,
+        bcftools_path = BCFTOOLS_PATH
     threads: 1
     resources:
         mem_mb = 32000,
-        time = "1:00:00"
+        time = "2:30:00"
     shell:
         """
         set +u
@@ -58,9 +70,15 @@ rule map_snpid_from_snpdb_chr:
         fi
         set -u
 
-        if ! command -v bcftools >/dev/null 2>&1; then
-            echo "Error: bcftools is not available in PATH on this node. Update configs/software.yml for bcftools module/path." >&2
-            exit 1
+        BCFTOOLS_CMD="bcftools"
+        if [[ -n "{params.bcftools_path}" ]]; then
+            BCFTOOLS_CMD="{params.bcftools_path}"
+        elif command -v bcftools >/dev/null 2>&1; then
+            BCFTOOLS_CMD="$(command -v bcftools)"
+        elif [[ -x /usr/bin/bcftools ]]; then
+            BCFTOOLS_CMD="/usr/bin/bcftools"
+        elif [[ -x /usr/local/bin/bcftools ]]; then
+            BCFTOOLS_CMD="/usr/local/bin/bcftools"
         fi
 
         Rscript scripts/map_snpid_from_snpdb_chr.R \
@@ -73,6 +91,7 @@ rule map_snpid_from_snpdb_chr:
             --log {log} \
             --snpdb-root {params.snpdb_root} \
             --mapping-dir {params.mapping_dir} \
+            --bcftools "$BCFTOOLS_CMD" \
             2>&1 | tee {log}
         """
 

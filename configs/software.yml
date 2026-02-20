@@ -16,9 +16,9 @@ liftover:
   binary: "liftOver"
 
 bcftools:
-  module: "bcftools/1.15"
+  module: "bcftools/1.14"
   # path: "/usr/local/bin/bcftools"  # Alternative: direct path
-  version: "1.15"
+  version: "1.14"
   params:
     threads: 2
 
